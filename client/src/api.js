@@ -1,0 +1,1 @@
+export async function validateWord(word){ const res = await fetch(`/api/validate?word=${encodeURIComponent(word)}`); return res.json(); }
