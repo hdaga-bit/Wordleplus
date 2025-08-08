@@ -1,0 +1,22 @@
+# Node dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Build output
+dist/
+
+# Local env files
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Editor/OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
