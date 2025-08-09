@@ -35,7 +35,7 @@ function loadWords() {
 loadWords();
 
 const app = express();
-app.use(cors({ origin: "https://wordleplus-gamma.vercel.app" }));
+app.use(cors({ origin: "amusing-endurance-production.up.railway.app" }));
 
 app.use(express.json());
 
@@ -56,7 +56,7 @@ app.get('/api/validate', (req, res) => {
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: "http://wordleplus-gamma.vercel.app" },
+  cors: { origin: "amusing-endurance-production.up.railway.app" },
 });
 
 /**
