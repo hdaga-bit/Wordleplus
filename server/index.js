@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { scoreGuess } from "./game.js";
+import { isValidWordLocal, scoreGuess } from "./game.js";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
@@ -54,9 +54,6 @@ app.get('/api/validate', (req, res) => {
   res.json({ valid: isValidWordLocal(word) });
 });
 
-// // In game events:
-// if (!isValidWordLocal(secret)) return cb?.({ error: 'Invalid word' });
-// if (!isValidWordLocal(guess))  return cb?.({ error: 'Invalid word' });
 
 const httpServer = createServer(app);
 // const io = new Server(httpServer, {
@@ -122,7 +119,7 @@ io.on("connection", (socket) => {
   socket.on("setSecret", ({ roomId, secret }, cb) => {
     const room = rooms.get(roomId);
     if (!room || room.mode !== "duel") return;
-    if (!isValidWord(secret, WORDLIST)) return cb?.({ error: "Invalid word" });
+    if (!isValidWordLocal(secret)) return cb?.({ error: "Invalid word" });
     room.players[socket.id].secret = secret.toUpperCase();
     room.players[socket.id].ready = true;
     io.to(roomId).emit("roomState", sanitizeRoom(room));
@@ -133,7 +130,7 @@ io.on("connection", (socket) => {
   socket.on("makeGuess", ({ roomId, guess }, cb) => {
     const room = rooms.get(roomId);
     if (!room) return cb?.({ error: "Room not found" });
-    if (!isValidWord(guess, WORDLIST)) return cb?.({ error: "Invalid word" });
+    if (!isValidWordLocal(guess)) return cb?.({ error: "Invalid word" });
 
     if (room.mode === "duel") {
       if (!room.started) return cb?.({ error: "Game not started" });
@@ -186,7 +183,7 @@ io.on("connection", (socket) => {
     if (room.mode !== "battle") return cb?.({ error: "Wrong mode" });
     if (socket.id !== room.hostId)
       return cb?.({ error: "Only host can set word" });
-    if (!isValidWord(secret, WORDLIST)) return cb?.({ error: "Invalid word" });
+    if (!isValidWordLocal(secret)) return cb?.({ error: "Invalid word" });
     room.battle.secret = secret.toUpperCase();
     Object.values(room.players).forEach((p) => {
       p.guesses = [];
