@@ -35,8 +35,14 @@ function loadWords() {
 loadWords();
 
 const app = express();
-app.use(cors({ origin: "amusing-endurance-production.up.railway.app" }));
+// app.use(cors({ origin: "amusing-endurance-production.up.railway.app" }));
+const FRONTEND = 'https://wordleplus-gamma.vercel.app';
 
+app.use(cors({ origin: FRONTEND }));
+
+const io = new Server(httpServer, {
+  cors: { origin: FRONTEND }
+});
 app.use(express.json());
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -55,9 +61,9 @@ app.get('/api/validate', (req, res) => {
 // if (!isValidWordLocal(guess))  return cb?.({ error: 'Invalid word' });
 
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: { origin: "amusing-endurance-production.up.railway.app" },
-});
+// const io = new Server(httpServer, {
+//   cors: { origin: "amusing-endurance-production.up.railway.app" },
+// });
 
 /**
  * Room schema
