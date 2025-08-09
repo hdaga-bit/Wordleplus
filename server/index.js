@@ -8,14 +8,15 @@ import fs from 'fs';
 const WORDLIST = JSON.parse(fs.readFileSync(new URL('./wordlist.json', import.meta.url)));
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: 'https://wordleplus-gamma.vercel.app' }));
+
 app.use(express.json());
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/validate', (req, res) => res.json({ valid: isValidWord((req.query.word||'').toString(), WORDLIST) }));
 
 const httpServer = createServer(app);
-const io = new Server(httpServer, { cors: { origin: '*' } });
+const io = new Server(httpServer, { cors: { origin: 'https://wordleplus-gamma.vercel.app' } });
 
 /**
  * Room schema
@@ -193,5 +194,5 @@ function sanitizeRoom(room) {
   };
 }
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 8080;
 httpServer.listen(PORT, () => console.log('Server listening on', PORT));
