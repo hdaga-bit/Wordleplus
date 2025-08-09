@@ -56,7 +56,7 @@ app.get('/api/validate', (req, res) => {
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: "https://wordleplus-gamma.vercel.app" },
+  cors: { origin: "http://wordleplus-gamma.vercel.app" },
 });
 
 /**
