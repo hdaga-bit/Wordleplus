@@ -6,4 +6,9 @@ export function scoreGuess(secret, guess) {
   for (let i=0;i<5;i++) if (res[i]==='gray' && cnt[guess[i]]>0){res[i]='yellow';cnt[guess[i]]--;}
   return res;
 }
-export function isValidWord(word, wordlist){ if(!word) return false; const w=word.toUpperCase(); return /^[A-Z]{5}$/.test(w) && wordlist.includes(w); }
+// export function isValidWord(word, wordlist){ if(!word) return false; const w=word.toUpperCase(); return /^[A-Z]{5}$/.test(w) && wordlist.includes(w); }
+function isValidWordLocal(word) {
+  if (!word) return false;
+  const w = word.toUpperCase();
+  return /^[A-Z]{5}$/.test(w) && WORDSET.has(w);
+}
