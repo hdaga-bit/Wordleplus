@@ -40,9 +40,7 @@ const FRONTEND = 'https://wordleplus-gamma.vercel.app';
 
 app.use(cors({ origin: FRONTEND }));
 
-const io = new Server(httpServer, {
-  cors: { origin: FRONTEND }
-});
+
 app.use(express.json());
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -64,7 +62,9 @@ const httpServer = createServer(app);
 // const io = new Server(httpServer, {
 //   cors: { origin: "amusing-endurance-production.up.railway.app" },
 // });
-
+const io = new Server(httpServer, {
+  cors: { origin: FRONTEND }
+});
 /**
  * Room schema
  * {
