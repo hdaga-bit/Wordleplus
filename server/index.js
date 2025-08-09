@@ -2,8 +2,10 @@ import express from "express";
 import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { scoreGuess, isValidWord } from "./game.js";
+import { scoreGuess } from "./game.js";
 import fs from "fs";
+import { fileURLToPath } from "url";
+import path from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,9 +50,9 @@ app.get('/api/validate', (req, res) => {
   res.json({ valid: isValidWordLocal(word) });
 });
 
-// In game events:
-if (!isValidWordLocal(secret)) return cb?.({ error: 'Invalid word' });
-if (!isValidWordLocal(guess))  return cb?.({ error: 'Invalid word' });
+// // In game events:
+// if (!isValidWordLocal(secret)) return cb?.({ error: 'Invalid word' });
+// if (!isValidWordLocal(guess))  return cb?.({ error: 'Invalid word' });
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {

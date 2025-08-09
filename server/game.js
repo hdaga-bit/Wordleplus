@@ -7,7 +7,7 @@ export function scoreGuess(secret, guess) {
   return res;
 }
 // export function isValidWord(word, wordlist){ if(!word) return false; const w=word.toUpperCase(); return /^[A-Z]{5}$/.test(w) && wordlist.includes(w); }
-function isValidWordLocal(word) {
+export function isValidWordLocal(word) {
   if (!word) return false;
   const w = word.toUpperCase();
   return /^[A-Z]{5}$/.test(w) && WORDSET.has(w);
