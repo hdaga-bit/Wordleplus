@@ -111,6 +111,7 @@ export default function App() {
     socket.emit("createRoom", { name, mode }, (resp) => {
       if (resp?.roomId) {
         setRoomId(resp.roomId);
+       setCurrentGuess("");
         setScreen("lobby");
       }
     });
@@ -118,7 +119,10 @@ export default function App() {
   function join() {
     socket.emit("joinRoom", { name, roomId }, (resp) => {
       if (resp?.error) setMsg(resp.error);
-      else setScreen("lobby");
+      else {
+       setCurrentGuess("");
+        setScreen("lobby");
+      }
     });
   }
 
@@ -143,7 +147,7 @@ export default function App() {
       return;
     }
     socket.emit("makeGuess", { roomId, guess: currentGuess }, (resp) => {
-      if (resp?.error) setMsg(resp.error);
+      if (resp?.error) {setMsg(resp.error); return;}
       setCurrentGuess("");
     });
   }
@@ -179,12 +183,13 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (room?.mode === "duel" && room?.started) setScreen("game");
-    if (
+    if (room?.mode === "duel" && room?.started) {setScreen("game"); setCurrentGuess("")}
+    else if (
       room?.mode === "battle" &&
       (room?.battle?.started || room?.battle?.winner || room?.battle?.reveal)
     )
       setScreen("game");
+      setCurrentGuess("")
   }, [
     room?.started,
     room?.battle?.started,
@@ -380,7 +385,7 @@ export default function App() {
         </CardHeader>
         <CardContent>
           <p className="font-semibold mb-2">Your Guesses</p>
-          <Board guesses={me?.guesses || []} currentGuess={currentGuess} />
+          <Board guesses={me?.guesses || []} activeGuess={currentGuess} />
         </CardContent>
       </Card>
 
@@ -397,7 +402,7 @@ export default function App() {
         </CardHeader>
         <CardContent>
           <p className="font-semibold mb-2">Opponent’s Guesses</p>
-          <Board guesses={opponent?.guesses || []} currentGuess="" />
+          <Board guesses={opponent?.guesses || []} activeGuess="" />
         </CardContent>
       </Card>
     </div>
