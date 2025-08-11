@@ -14,6 +14,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import SpectateCard from "./components/SpectateCard.jsx";
 function useRoomState() {
   const [room, setRoom] = useState(null);
   useEffect(() => {
@@ -420,30 +421,41 @@ export default function App() {
 )}
 
 {screen === "game" && room?.mode === "battle" && (
-  <div className="max-w-5xl mx-auto p-4 space-y-6">{/* wider than 4xl */}
-    <h2 className="text-xl font-bold text-center text-slate-700">Battle Royale</h2>
+  isHost ? (
+    // HOST SPECTATE VIEW
+    <div className="max-w-6xl mx-auto p-4 space-y-6">
+      <h2 className="text-xl font-bold text-slate-700">Host Spectate View</h2>
 
-    {/* On md+, use equal columns; on lg+, nudge board wider */}
-    <div className="grid gap-6 md:grid-cols-2 lg:[grid-template-columns:1.3fr_1fr]">
-      {/* LEFT: your board (or empty if host) */}
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {players
+          .filter(p => p.id !== room?.hostId) // don't show host card
+          .map(p => (
+            <SpectateCard key={p.id} player={p} />
+          ))}
+      </div>
+
+      {!!msg && <p className="text-destructive text-center">{msg}</p>}
+    </div>
+  ) : (
+    // PLAYER VIEW
+    <div className="max-w-5xl mx-auto p-4 space-y-6">
+      <h2 className="text-xl font-bold text-center text-slate-700">Battle Royale</h2>
+
       <Card className="bg-card/60 backdrop-blur">
-        <CardHeader className="pb-1">
-          <CardTitle className="text-base">
-            {isHost ? "Spectating" : "Your Board"}
-          </CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Your Board</CardTitle>
           <CardDescription>
             {room?.battle?.started ? "Round in progress" : "Waiting to start"}
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-2">
-          {/* Give the board comfortable tiles */}
+        <CardContent>
           <Board
             guesses={me?.guesses || []}
-            activeGuess={isHost ? "" : currentGuess}
-            tile={56}             // <-- see Board tweak below
+            activeGuess={currentGuess}
+            tile={56}
             gap={8}
           />
-          {!isHost && room?.battle?.started && (
+          {room?.battle?.started && (
             <div className="mt-4">
               <Keyboard onKeyPress={handleKey} letterStates={letterStates} />
             </div>
@@ -451,55 +463,9 @@ export default function App() {
         </CardContent>
       </Card>
 
-      {/* RIGHT: host controls / status */}
-      <Card className="bg-card/60 backdrop-blur">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Round Controls</CardTitle>
-          <CardDescription>Host manages the round</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <PlayersList
-            players={players}
-            hostId={room?.hostId}
-            showProgress
-            className="max-h-64 overflow-auto pr-1" // prevent tall list from stretching card
-          />
-
-          {!room?.battle?.started && isHost && (
-            <>
-              {!room?.battle?.hasSecret ? (
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Enter new host word"
-                    value={hostWord}
-                    onChange={(e) => setHostWord(e.target.value)}
-                    maxLength={5}
-                  />
-                  <Button onClick={setWordAndStart}>Start</Button>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Word set. Click Start.
-                </p>
-              )}
-
-              {(room?.battle?.winner || room?.battle?.reveal) && (
-                <Button onClick={() => playAgain(false)}>Play again</Button>
-              )}
-            </>
-          )}
-
-          {room?.battle?.started && isHost && (
-            <p className="text-sm text-muted-foreground">
-              Spectating… players are guessing.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {!!msg && <p className="text-destructive text-center">{msg}</p>}
     </div>
-
-    {!!msg && <p className="text-destructive text-center">{msg}</p>}
-  </div>
+  )
 )}
     </div>
   );
