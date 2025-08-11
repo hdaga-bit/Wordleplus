@@ -167,6 +167,7 @@ export default function App() {
     });
   }
   async function battleGuess(g) {
+    if (isHost) { setMsg("Host is spectating this round"); return; }
     const v = await validateWord(g);
     if (!v.valid) {
       setMsg("Guess must be a valid 5-letter word");
@@ -419,66 +420,64 @@ export default function App() {
 )}
 
       {screen === "game" && room?.mode === "battle" && (
-        <div className="grid gap-6 max-w-md mx-auto">
-          <PlayersList players={players} hostId={room?.hostId} showProgress />
-          <Board guesses={me?.guesses || []} />
-          {room?.battle?.started ? (
-            <BattleInput onSubmit={battleGuess} />
-          ) : (
-            <div className="grid gap-4">
-              {room?.battle?.winner ? (
-                <p className="font-semibold text-lg">
-                  <b>Winner:</b>{" "}
-                  {room.battle.winner === socket.id
-                    ? "You"
-                    : players.find((p) => p.id === room.battle.winner)?.name ||
-                      "Unknown"}
-                </p>
-              ) : room?.battle?.reveal ? (
-                <p className="font-semibold text-lg">
-                  <b>No winner.</b> The word was{" "}
-                  <code>{room.battle.reveal}</code>.
-                </p>
-              ) : (
-                <p className="italic text-gray-600">Waiting for host…</p>
+        <div className="max-w-4xl mx-auto p-4 space-y-6">
+        <h2 className="text-xl font-bold text-center text-slate-700">Battle Royale</h2>
+        <div className="grid md:grid-cols-[2fr_1fr] gap-6">
+          {/* Left: your board (or empty if host) */}
+          <Card className="bg-card/60 backdrop-blur">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">{isHost ? "Spectating" : "Your Board"}</CardTitle>
+              <CardDescription>
+                {room?.battle?.started ? "Round in progress" : "Waiting to start"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Board guesses={me?.guesses || []} activeGuess={isHost ? "" : currentGuess} />
+              {!isHost && room?.battle?.started && (
+                <div className="mt-4">
+                  <Keyboard onKeyPress={handleKey} letterStates={letterStates} />
+                </div>
               )}
-              {isHost && (
-                <div className="flex flex-wrap gap-4">
-                  <button
-                    onClick={() => playAgain(true)}
-                    className="bg-red-600 text-white px-4 py-2 rounded font-semibold hover:bg-red-700"
-                  >
-                    Play again (same word)
-                  </button>
-                  <button
-                    onClick={() => playAgain(false)}
-                    className="bg-red-600 text-white px-4 py-2 rounded font-semibold hover:bg-red-700"
-                  >
-                    Play again (new word)
-                  </button>
-                  {!room?.battle?.hasSecret && (
-                    <div className="flex gap-4 items-center">
-                      <input
-                        className="border border-gray-300 rounded px-3 py-2 max-w-xs focus:outline-none focus:ring-2 focus:ring-red-500"
-                        placeholder="New host word"
+            </CardContent>
+          </Card>
+      
+          {/* Right: host controls or status */}
+          <Card className="bg-card/60 backdrop-blur">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Round Controls</CardTitle>
+              <CardDescription>Host manages the round</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <PlayersList players={players} hostId={room?.hostId} showProgress />
+              {!room?.battle?.started && isHost && (
+                <>
+                  {!room?.battle?.hasSecret ? (
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter new host word"
                         value={hostWord}
                         onChange={(e) => setHostWord(e.target.value)}
                         maxLength={5}
                       />
-                      <button
-                        onClick={setWordAndStart}
-                        className="bg-red-600 text-white px-4 py-2 rounded font-semibold hover:bg-red-700"
-                      >
-                        Start Battle
-                      </button>
+                      <Button onClick={setWordAndStart}>Start</Button>
                     </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Word set. Click Start.</p>
                   )}
-                </div>
+                  {(room?.battle?.winner || room?.battle?.reveal) && (
+                    <Button onClick={() => playAgain(false)}>Play again</Button>
+                  )}
+                </>
               )}
-            </div>
-          )}
-          {!!msg && <p className="text-red-600 font-medium">{msg}</p>}
+              {room?.battle?.started && isHost && (
+                <p className="text-sm text-muted-foreground">Spectating… players are guessing.</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
+      
+        {!!msg && <p className="text-destructive text-center">{msg}</p>}
+      </div>
       )}
     </div>
   );
@@ -508,9 +507,9 @@ function PlayersList({ players, hostId, showProgress, className }) {
                   <CardTitle className="text-base">
                     <span className="font-semibold">{p.name}</span>
                     {isHost && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        (Host)
-                      </span>
+                        <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">
+                          Host · Spectating
+                        </span>
                     )}
                   </CardTitle>
                   {showProgress && (

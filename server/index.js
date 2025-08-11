@@ -242,6 +242,9 @@ io.on("connection", (socket) => {
 
     // BATTLE logic
     if (room.mode === "battle") {
+      if (socket.id === room.hostId) {
+             return cb?.({ error: "Host is spectating this round" });
+           }
       if (!room.battle.started) return cb?.({ error: "Battle not started" });
       const player = room.players[socket.id];
       if (!player) return cb?.({ error: "Not in room" });
@@ -320,7 +323,7 @@ io.on("connection", (socket) => {
     room.battle.started = false;
     room.battle.winner = null;
     room.battle.reveal = null;
-    if (!keepWord) room.battle.secret = null;
+    room.battle.secret = null; // always require a new word
 
     io.to(roomId).emit("roomState", sanitizeRoom(room));
     cb?.({ ok: true });
