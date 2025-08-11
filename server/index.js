@@ -98,7 +98,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(cors(corsOptions));
 app.use(express.json());
 
 // Health + validate
@@ -119,6 +118,24 @@ app.post("/api/reload-words", (_req, res) => {
   }
 });
 
+function maybeStartDuel(roomId) {
+  const room = rooms.get(roomId);
+  if (!room || room.mode !== "duel") return;
+
+  const ids = Object.keys(room.players);
+  if (ids.length !== 2) return;
+
+  const allReady = ids.every(id => room.players[id].ready && room.players[id].secret);
+  if (allReady && !room.started) {
+    room.started = true;
+    // fresh state at start
+    ids.forEach(id => {
+      room.players[id].guesses = [];
+      room.players[id].done = false;
+    });
+    io.to(roomId).emit("roomState", sanitizeRoom(room));
+  }
+}
 // ---------- HTTP + Socket.IO (same server) ----------
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -179,36 +196,10 @@ io.on("connection", (socket) => {
     io.to(roomId).emit("roomState", sanitizeRoom(room));
   });
   // In server/index.js, after setSecret handler
-  socket.on("setSecret", ({ roomId, secret }, cb) => {
-    const room = rooms.get(roomId);
-    if (!room || room.mode !== "duel") return;
-    if (!isValidWordLocal(secret)) return cb?.({ error: "Invalid word" });
-    room.players[socket.id].secret = secret.toUpperCase();
-    room.players[socket.id].ready = true;
-    console.log(`[setSecret] Player ${socket.id} set secret, ready: true`); // Debug log
-    io.to(roomId).emit("roomState", sanitizeRoom(room));
-    maybeStartDuel(roomId);
-    cb?.({ ok: true });
-  });
+  
 
   // Add or update maybeStartDuel
-  function maybeStartDuel(roomId) {
-    const room = rooms.get(roomId);
-    if (!room || room.mode !== "duel") return;
-
-    const playerIds = Object.keys(room.players);
-    if (playerIds.length !== 2) return; // Ensure exactly 2 players
-
-    const allReady = playerIds.every(
-      (id) => room.players[id].ready && room.players[id].secret
-    );
-    if (allReady && !room.started) {
-      console.log(`[maybeStartDuel] Starting duel in room ${roomId}`); // Debug log
-      console.log("[maybeStartDuel] Starting duel, players:", playerIds);
-      room.started = true;
-      io.to(roomId).emit("roomState", sanitizeRoom(room));
-    }
-  }
+  
   // ----- DUEL -----
   socket.on("setSecret", ({ roomId, secret }, cb) => {
     const room = rooms.get(roomId);
@@ -401,21 +392,10 @@ function computeDuelWinner(room) {
 //   };
 // }
 function sanitizeRoom(room) {
-  const isGameOver =
-    room.winner || (room.mode === "battle" && room.battle.reveal);
   const players = Object.fromEntries(
     Object.entries(room.players).map(([id, p]) => {
-      const { name, ready, guesses, done, secret } = p;
-      return [
-        id,
-        {
-          name,
-          ready,
-          guesses,
-          done,
-          secret: isGameOver ? secret : null, // Reveal secret only after game ends
-        },
-      ];
+      const { name, ready, guesses, done } = p;
+      return [id, { name, ready, guesses, done }];
     })
   );
   return {
@@ -428,7 +408,7 @@ function sanitizeRoom(room) {
     battle: {
       started: room.battle.started,
       winner: room.battle.winner,
-      reveal: room.battle.reveal,
+      reveal: room.battle.reveal,   // use this for Battle Royale reveal
       hasSecret: !!room.battle.secret,
     },
   };
