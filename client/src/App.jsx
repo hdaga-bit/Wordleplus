@@ -53,8 +53,14 @@ export default function App() {
     );
     return p;
   }, [room]);
-  const opponent =
-    players.length > 1 ? players.find((p) => p.id !== socket.id) : null;
+
+  const opponent = useMemo(() => {
+    const list = room?.players ? Object.entries(room.players) : [];
+    const other = list.find(([id]) => id !== socket.id);
+    return other ? { id: other[0], ...other[1] } : null;
+  }, [room]);
+  // const opponent =
+  //   players.length > 1 ? players.find((p) => p.id !== socket.id) : null;
 
   const isHost = room?.hostId === socket.id;
 
@@ -354,148 +360,58 @@ export default function App() {
         </div>
       )}
 
-      {screen === "game" && room?.mode === "duel" && opponent && (
-        <div className="max-w-4xl mx-auto p-4">
-          <h2 className="text-xl font-bold text-center mb-4 text-gray-700">
-            Fewest guesses wins
-          </h2>
-          <div className="grid grid-cols-2 gap-6">
-            {/* Left: Your Secret Word (opponent's guesses on it) */}
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-200 flex items-center justify-center text-xl">
-                    🐢
-                  </div>
-                  <div>
-                    <CardTitle>{me?.name}</CardTitle>
-                    <CardDescription>
-                      Rating: {me?.rating || 999}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="font-semibold mb-2">Your Secret Word</p>
-                <div
-                  className="grid grid-cols-5 gap-2 mb-6"
-                  style={{ gridTemplateColumns: "repeat(5, 48px)", gap: 6 }}
-                >
-                  {(getRevealedSecret(opponent?.guesses || [], true) || "")
-                    .split("")
-                    .map((letter, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          height: 48,
-                          display: "grid",
-                          placeItems: "center",
-                          background: "#6aaa64",
-                          color: "#fff",
-                          fontWeight: "bold",
-                          textTransform: "uppercase",
-                          border: "1px solid #6aaa64",
-                          borderRadius: 4,
-                        }}
-                      >
-                        {letter}
-                      </div>
-                    )) ||
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          height: 48,
-                          background: "#fff",
-                          border: "1px solid #ccc",
-                          borderRadius: 4,
-                        }}
-                      />
-                    ))}
-                </div>
-                <p className="font-semibold mb-2">Guesses</p>
-                <Board guesses={opponent?.guesses || []} currentGuess="" />
-              </CardContent>
-            </Card>
+{screen === "game" && room?.mode === "duel" && opponent && (
+  <div className="max-w-4xl mx-auto p-4">
+    <h2 className="text-xl font-bold text-center mb-4 text-gray-700">
+      Fewest guesses wins
+    </h2>
 
-            {/* Right: Opponent's Secret Word (your guesses on it) */}
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-pink-200 flex items-center justify-center text-xl">
-                    🦠
-                  </div>
-                  <div>
-                    <CardTitle>{opponent?.name}</CardTitle>
-                    <CardDescription>
-                      Rating: {opponent?.rating || 1000}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="font-semibold mb-2">Opponent's Secret Word</p>
-                <div
-                  className="grid grid-cols-5 gap-2 mb-6"
-                  style={{ gridTemplateColumns: "repeat(5, 48px)", gap: 6 }}
-                >
-                  {(getRevealedSecret(me?.guesses || [], false) || "")
-                    .split("")
-                    .map((letter, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          height: 48,
-                          display: "grid",
-                          placeItems: "center",
-                          background: "#6aaa64",
-                          color: "#fff",
-                          fontWeight: "bold",
-                          textTransform: "uppercase",
-                          border: "1px solid #6aaa64",
-                          borderRadius: 4,
-                        }}
-                      >
-                        {letter}
-                      </div>
-                    )) ||
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          height: 48,
-                          background: "#fff",
-                          border: "1px solid #ccc",
-                          borderRadius: 4,
-                        }}
-                      />
-                    ))}
-                </div>
-                <p className="font-semibold mb-2">Guesses</p>
-                <Board
-                  guesses={me?.guesses || []}
-                  currentGuess={currentGuess}
-                />
-              </CardContent>
-            </Card>
+    <div className="grid grid-cols-2 gap-6">
+      {/* LEFT: Your guesses on opponent's secret */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-200 grid place-items-center text-xl">🧑</div>
+            <div>
+              <CardTitle>{me?.name} (You)</CardTitle>
+              <CardDescription>Guessing opponent’s word</CardDescription>
+            </div>
           </div>
+        </CardHeader>
+        <CardContent>
+          <p className="font-semibold mb-2">Your Guesses</p>
+          <Board guesses={me?.guesses || []} currentGuess={currentGuess} />
+        </CardContent>
+      </Card>
 
-          {/* Keyboard */}
-          <Keyboard onKeyPress={handleKey} letterStates={letterStates} />
+      {/* RIGHT: Opponent's guesses on your secret */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-pink-200 grid place-items-center text-xl">🧑‍💻</div>
+            <div>
+              <CardTitle>{opponent?.name}</CardTitle>
+              <CardDescription>Guessing your word</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="font-semibold mb-2">Opponent’s Guesses</p>
+          <Board guesses={opponent?.guesses || []} currentGuess="" />
+        </CardContent>
+      </Card>
+    </div>
 
-          {room?.winner && (
-            <p className="text-center font-bold text-lg mt-4">
-              Winner:{" "}
-              {room.winner === "draw"
-                ? "Draw"
-                : room.winner === socket.id
-                ? "You"
-                : "Opponent"}
-            </p>
-          )}
-          {!!msg && <p className="text-red-600 text-center mt-2">{msg}</p>}
-        </div>
-      )}
+    <Keyboard onKeyPress={handleKey} letterStates={letterStates} />
+
+    {room?.winner && (
+      <p className="text-center font-bold text-lg mt-4">
+        Winner: {room.winner === "draw" ? "Draw" : room.winner === socket.id ? "You" : "Opponent"}
+      </p>
+    )}
+    {!!msg && <p className="text-red-600 text-center mt-2">{msg}</p>}
+  </div>
+)}
 
       {screen === "game" && room?.mode === "battle" && (
         <div className="grid gap-6 max-w-md mx-auto">
