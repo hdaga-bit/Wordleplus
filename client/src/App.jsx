@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { socket } from "./socket";
 import Board from "./components/Board.jsx";
-import Keyboard from "./components/keyboard.jsx";
+import Keyboard from "./components/Keyboard.jsx";
 import { validateWord } from "./api";
 import { cn } from "./lib/utils.js";
 
