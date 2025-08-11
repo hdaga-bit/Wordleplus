@@ -93,6 +93,17 @@ export default function App() {
     return ""; // Empty if not revealed
   };
 
+  const setWordAndStart = () => {
+    socket.emit("setHostWord", { roomId: room.id, secret: hostWord }, (res) => {
+      if (res?.ok) {
+        socket.emit("startBattle", { roomId: room.id });
+        setHostWord("");
+      } else {
+        setMsg(res.error || "Failed to set word");
+      }
+    });
+  };
+
   // Keyboard handlers
   const handleKey = (key) => {
     console.log("[handleKey] Key pressed:", key); // Debug log to see if keys are detected
@@ -234,7 +245,7 @@ export default function App() {
   }, [me?.guesses]);
 
   return (
-    <div className="max-w-3xl mx-auto p-4 font-sans">
+    <div className="max-w-7xl mx-auto p-4 font-sans">
       <h1 className="text-3xl font-bold text-red-600 mb-6">Friendle Clone</h1>
 
       {screen === "home" && (
@@ -378,7 +389,7 @@ export default function App() {
       )}
 
 {screen === "game" && room?.mode === "duel" && opponent && (
-  <div className="max-w-4xl mx-auto p-4">
+  <div className="max-w-7xl mx-auto p-4">
     <h2 className="text-xl font-bold text-center mb-4 text-gray-700">
       Fewest guesses wins
     </h2>
@@ -433,9 +444,9 @@ export default function App() {
 {screen === "game" && room?.mode === "battle" && (
   isHost ? (
     // HOST SPECTATE WALL
-    <div className="max-w-6xl mx-auto p-4 space-y-6">
+    <div className="max-w-7xl mx-auto p-4 space-y-6">
       <h2 className="text-xl font-bold text-slate-700">Host Spectate View</h2>
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {Object.entries(room?.players || {})
           .filter(([id]) => id !== room?.hostId)
           .map(([id, p]) => (
@@ -457,8 +468,29 @@ export default function App() {
                 <Board guesses={p.guesses || []} tile={50} gap={8} />
               </CardContent>
             </Card>
+            
           ))}
       </div>
+      {(room?.battle?.winner || room?.battle?.reveal) && isHost && !room?.battle?.started && (
+        <div className="flex gap-2 mt-4">
+          <Input
+            placeholder="Enter new secret word"
+            value={hostWord}
+            onChange={(e) => setHostWord(e.target.value)}
+            maxLength={5}
+            className="w-40"
+          />
+          <Button onClick={() => {
+            if (hostWord.trim().length !== 5) {
+              setMsg("Secret word must be 5 letters");
+              return;
+            }
+            setWordAndStart();
+          }}>
+            Play again
+          </Button>
+        </div>
+      )}
     </div>
   ) : (
     // PLAYER VIEW (shows keyboard)
