@@ -14,6 +14,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import SpectateCard from "./components/SpectateCard.jsx";
 function useRoomState() {
   const [room, setRoom] = useState(null);
   useEffect(() => {
@@ -54,6 +55,11 @@ export default function App() {
     return p;
   }, [room]);
 
+  function getInitials(name = "") {
+    const parts = name.trim().split(/\s+/).slice(0, 2);
+    return parts.map(p => p[0]?.toUpperCase() || "").join("");
+  }
+
   const opponent = useMemo(() => {
     const list = room?.players ? Object.entries(room.players) : [];
     const other = list.find(([id]) => id !== socket.id);
@@ -63,6 +69,11 @@ export default function App() {
   //   players.length > 1 ? players.find((p) => p.id !== socket.id) : null;
 
   const isHost = room?.hostId === socket.id;
+
+  const canGuess =
+  room?.mode === "battle" &&
+  room?.battle?.started &&
+  !isHost;
 
   // Helper to get revealed secret
   const getRevealedSecret = (playerGuesses, isMe) => {
@@ -80,6 +91,17 @@ export default function App() {
       return opponent.secret;
     }
     return ""; // Empty if not revealed
+  };
+
+  const setWordAndStart = () => {
+    socket.emit("setHostWord", { roomId: room.id, secret: hostWord }, (res) => {
+      if (res?.ok) {
+        socket.emit("startBattle", { roomId: room.id });
+        setHostWord("");
+      } else {
+        setMsg(res.error || "Failed to set word");
+      }
+    });
   };
 
   // Keyboard handlers
@@ -223,7 +245,7 @@ export default function App() {
   }, [me?.guesses]);
 
   return (
-    <div className="max-w-3xl mx-auto p-4 font-sans">
+    <div className="max-w-7xl mx-auto p-4 font-sans">
       <h1 className="text-3xl font-bold text-red-600 mb-6">Friendle Clone</h1>
 
       {screen === "home" && (
@@ -367,7 +389,7 @@ export default function App() {
       )}
 
 {screen === "game" && room?.mode === "duel" && opponent && (
-  <div className="max-w-4xl mx-auto p-4">
+  <div className="max-w-7xl mx-auto p-4">
     <h2 className="text-xl font-bold text-center mb-4 text-gray-700">
       Fewest guesses wins
     </h2>
@@ -419,66 +441,80 @@ export default function App() {
   </div>
 )}
 
-      {screen === "game" && room?.mode === "battle" && (
-        <div className="max-w-4xl mx-auto p-4 space-y-6">
-        <h2 className="text-xl font-bold text-center text-slate-700">Battle Royale</h2>
-        <div className="grid md:grid-cols-[2fr_1fr] gap-6">
-          {/* Left: your board (or empty if host) */}
-          <Card className="bg-card/60 backdrop-blur">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">{isHost ? "Spectating" : "Your Board"}</CardTitle>
-              <CardDescription>
-                {room?.battle?.started ? "Round in progress" : "Waiting to start"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Board guesses={me?.guesses || []} activeGuess={isHost ? "" : currentGuess} />
-              {!isHost && room?.battle?.started && (
-                <div className="mt-4">
-                  <Keyboard onKeyPress={handleKey} letterStates={letterStates} />
+{screen === "game" && room?.mode === "battle" && (
+  isHost ? (
+    // HOST SPECTATE WALL
+    <div className="max-w-7xl mx-auto p-4 space-y-6">
+      <h2 className="text-xl font-bold text-slate-700">Host Spectate View</h2>
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {Object.entries(room?.players || {})
+          .filter(([id]) => id !== room?.hostId)
+          .map(([id, p]) => (
+            <Card key={id} className="bg-card/60 backdrop-blur">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-full bg-muted grid place-items-center text-sm font-semibold">
+                    {getInitials(p.name)}
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">{p.name}</CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground">
+                      {p.done ? "Done" : `${p.guesses?.length ?? 0}/6`}
+                    </CardDescription>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-      
-          {/* Right: host controls or status */}
-          <Card className="bg-card/60 backdrop-blur">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Round Controls</CardTitle>
-              <CardDescription>Host manages the round</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <PlayersList players={players} hostId={room?.hostId} showProgress />
-              {!room?.battle?.started && isHost && (
-                <>
-                  {!room?.battle?.hasSecret ? (
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Enter new host word"
-                        value={hostWord}
-                        onChange={(e) => setHostWord(e.target.value)}
-                        maxLength={5}
-                      />
-                      <Button onClick={setWordAndStart}>Start</Button>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Word set. Click Start.</p>
-                  )}
-                  {(room?.battle?.winner || room?.battle?.reveal) && (
-                    <Button onClick={() => playAgain(false)}>Play again</Button>
-                  )}
-                </>
-              )}
-              {room?.battle?.started && isHost && (
-                <p className="text-sm text-muted-foreground">Spectating… players are guessing.</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      
-        {!!msg && <p className="text-destructive text-center">{msg}</p>}
+              </CardHeader>
+              <CardContent>
+                <Board guesses={p.guesses || []} tile={50} gap={8} />
+              </CardContent>
+            </Card>
+            
+          ))}
       </div>
+      {(room?.battle?.winner || room?.battle?.reveal) && isHost && !room?.battle?.started && (
+        <div className="flex gap-2 mt-4">
+          <Input
+            placeholder="Enter new secret word"
+            value={hostWord}
+            onChange={(e) => setHostWord(e.target.value)}
+            maxLength={5}
+            className="w-40"
+          />
+          <Button onClick={() => {
+            if (hostWord.trim().length !== 5) {
+              setMsg("Secret word must be 5 letters");
+              return;
+            }
+            setWordAndStart();
+          }}>
+            Play again
+          </Button>
+        </div>
       )}
+    </div>
+  ) : (
+    // PLAYER VIEW (shows keyboard)
+    <div className="max-w-5xl mx-auto p-4 space-y-6">
+      <h2 className="text-xl font-bold text-center text-slate-700">Battle Royale</h2>
+      <Card className="bg-card/60 backdrop-blur">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Your Board</CardTitle>
+          <CardDescription>
+            {room?.battle?.started ? "Round in progress" : "Waiting to start"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Board guesses={me?.guesses || []} activeGuess={currentGuess} tile={56} gap={8} />
+          {canGuess && (
+            <div className="mt-4">
+              <Keyboard onKeyPress={handleKey} letterStates={letterStates} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+)}
     </div>
   );
 }
@@ -532,26 +568,3 @@ function PlayersList({ players, hostId, showProgress, className }) {
   );
 }
 
-function BattleInput({ onSubmit }) {
-  const [g, setG] = useState("");
-
-  const submit = () => {
-    const value = g.trim();
-    if (!value) return;
-    onSubmit(value);
-    setG("");
-  };
-
-  return (
-    <div className="flex items-center gap-2">
-      <Input
-        placeholder="Your guess"
-        value={g}
-        onChange={(e) => setG(e.target.value)}
-        maxLength={5}
-        aria-label="Your guess"
-      />
-      <Button onClick={submit}>Guess</Button>
-    </div>
-  );
-}

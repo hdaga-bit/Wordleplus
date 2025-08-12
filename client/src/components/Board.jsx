@@ -1,30 +1,63 @@
 // Board.jsx
-export default function Board({ guesses = [], activeGuess = "" }) {
-  // Completed rows
-  const rows = guesses.map(g => ({ guess: g.guess ?? "", pattern: g.pattern ?? [] }));
+import React from "react";
 
-  // If there’s room and we’re currently typing, show a live row
-  if (rows.length < 6 && activeGuess) {
-    rows.push({ guess: activeGuess, pattern: [] });
+export default function Board({
+  guesses = [],
+  activeGuess = "",
+  tile = 48,         // NEW: tile size in px
+  gap = 6,           // NEW: gap in px
+}) {
+  const rows = [...guesses];
+  const activeRow = rows.length;
+
+  if (rows.length < 6) {
+    rows.push({ guess: activeGuess.padEnd(5, " "), pattern: Array(5).fill("empty") });
   }
-
-  // Pad to 6 rows
   while (rows.length < 6) rows.push({ guess: "", pattern: [] });
 
   return (
-    <div className="grid gap-2">
-      {rows.slice(0,6).map((row, idx) => (
-        <div key={idx} className="grid grid-cols-5 gap-2">
+    <div style={{ display: "grid", gap }}>
+      {rows.map((row, rowIdx) => (
+        <div
+          key={rowIdx}
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(5, ${tile}px)`,
+            gap,
+          }}
+        >
           {Array.from({ length: 5 }).map((_, i) => {
             const ch = row.guess?.[i] || "";
-            const state = row.pattern?.[i]; // undefined or 'gray' | 'yellow' | 'green'
-            const base = "h-12 w-12 grid place-items-center text-xl font-bold uppercase rounded-md border";
-            const color =
-              state === "green"  ? "bg-[#6aaa64] text-white border-[#6aaa64]" :
-              state === "yellow" ? "bg-[#c9b458] text-white border-[#c9b458]" :
-              state === "gray"   ? "bg-[#787c7e] text-white border-[#787c7e]" :
-                                   "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600";
-            return <div key={i} className={`${base} ${color}`}>{ch}</div>;
+            const state = row.pattern?.[i] || "empty";
+            let bg = "#fff", color = "#000", border = "1px solid #ccc";
+
+            if (state === "green") { bg = "#6aaa64"; color = "#fff"; border = "1px solid #6aaa64"; }
+            else if (state === "yellow") { bg = "#c9b458"; color = "#fff"; border = "1px solid #c9b458"; }
+            else if (state === "gray") { bg = "#787c7e"; color = "#fff"; border = "1px solid #787c7e"; }
+            else if (rowIdx === activeRow && ch.trim() !== "") {
+              bg = "#fff"; color = "#000"; border = "1px solid #999";
+            } else if (state === "empty" && ch.trim() === "") {
+              border = "1px solid #ddd";
+            }
+
+            return (
+              <div
+                key={i}
+                style={{
+                  height: tile,
+                  display: "grid",
+                  placeItems: "center",
+                  background: bg,
+                  color,
+                  fontWeight: "bold",
+                  textTransform: "uppercase",
+                  border,
+                  borderRadius: 6,
+                }}
+              >
+                {ch.trim()}
+              </div>
+            );
           })}
         </div>
       ))}
