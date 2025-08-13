@@ -38,8 +38,16 @@ export default function App() {
   const [hostWord, setHostWord] = useState("");
 
   const [msg, setMsg] = useState("");
+  const [shakeKey, setShakeKey] = useState(0);     // NEW
+  const [showActiveError, setShowActiveError] = useState(false); // NEW
   const [room] = useRoomState();
   const [currentGuess, setCurrentGuess] = useState("");
+
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(""), 2000);
+    return () => clearTimeout(t);
+  }, [msg]);
 
   const me = useMemo(() => room?.players && room.players[socket.id], [room]);
   const players = useMemo(() => {
@@ -104,13 +112,26 @@ export default function App() {
   }
   async function submitDuelGuess() {
     if (!canGuessDuel) return;
-    if (currentGuess.length !== 5)
-      return setMsg("Guess must be exactly 5 letters");
+    if (currentGuess.length !== 5) {
+      setShowActiveError(true);
+      setShakeKey((k) => k + 1);
+      return;
+    }
+
     const v = await validateWord(currentGuess);
-    if (!v.valid) return setMsg("Guess must be a valid 5-letter word");
+    if (!v.valid) {
+      setShowActiveError(true);
+      setShakeKey((k) => k + 1);
+      return;
+    }    
     socket.emit("makeGuess", { roomId, guess: currentGuess }, (resp) => {
-      if (resp?.error) return setMsg(resp.error);
+      if (resp?.error) {
+        setShowActiveError(true);
+        setShakeKey((k) => k + 1);
+        return;
+      }      
       setCurrentGuess("");
+      setShowActiveError(false);
     });
   }
 
@@ -154,8 +175,10 @@ export default function App() {
       if (currentGuess.length === 5) {
         battleGuess(currentGuess);
         setCurrentGuess("");
+        setShowActiveError(false);
       } else {
-        setMsg("Guess must be exactly 5 letters");
+        setShowActiveError(true);
+        setShakeKey((k) => k + 1)
       }
     } else if (key === "BACKSPACE") setCurrentGuess((p) => p.slice(0, -1));
     else if (currentGuess.length < 5 && /^[A-Z]$/.test(key))
@@ -389,7 +412,7 @@ export default function App() {
               </CardHeader>
               <CardContent>
                 <p className="font-semibold mb-2">Your Guesses</p>
-                <Board guesses={me?.guesses || []} activeGuess={currentGuess} />
+                <Board guesses={me?.guesses || []} activeGuess={currentGuess} errorShakeKey={shakeKey} errorActiveRow={showActiveError}/>
               </CardContent>
             </Card>
 
@@ -406,7 +429,7 @@ export default function App() {
               </CardHeader>
               <CardContent>
                 <p className="font-semibold mb-2">Opponent’s Guesses</p>
-                <Board guesses={opponent?.guesses || []} activeGuess="" />
+                <Board guesses={opponent?.guesses || []} activeGuess="" errorShakeKey={shakeKey} errorActiveRow={showActiveError}/>
               </CardContent>
             </Card>
           </div>
@@ -498,6 +521,7 @@ export default function App() {
                   activeGuess={currentGuess}
                   tile={56}
                   gap={8}
+                  errorShakeKey={shakeKey} errorActiveRow={showActiveError}
                 />
                 {canGuessBattle && (
                   <div className="mt-4">
