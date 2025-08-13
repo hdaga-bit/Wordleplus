@@ -247,31 +247,32 @@ io.on("connection", (socket) => {
       const player = room.players[socket.id];
       if (!player) return cb?.({ error: "Not in room" });
       if (player.done) return cb?.({ error: "You already finished" });
-
+    
       const oppId = getOpponent(room, socket.id);
       if (!oppId) return cb?.({ error: "Waiting for opponent" });
-
+    
       const oppSecret = room.players[oppId].secret;
       const pattern = scoreGuess(oppSecret, guess);
       player.guesses.push({ guess: guess.toUpperCase(), pattern });
-
+    
       if (guess.toUpperCase() === oppSecret || player.guesses.length >= 6) {
         player.done = true;
       }
-
+    
       computeDuelWinner(room);
+    
+      // Reveal both secrets at end
       const ids = Object.keys(room.players);
       if (ids.length === 2) {
         const [a, b] = ids;
-        const A = room.players[a],
-          B = room.players[b];
+        const A = room.players[a], B = room.players[b];
         const bothDone = A.done && B.done;
         if (room.winner || bothDone) {
-          room.started = false; // round over
+          room.started = false;
+          room.duelReveal = { [a]: A.secret, [b]: B.secret };
         }
       }
-
-
+    
       io.to(roomId).emit("roomState", sanitizeRoom(room));
       return cb?.({ ok: true, pattern });
     }
@@ -444,6 +445,7 @@ function sanitizeRoom(room) {
     players,
     started: room.started,
     winner: room.winner,
+    duelReveal: room.duelReveal || undefined,
     battle: {
       started: room.battle.started,
       winner: room.battle.winner,
