@@ -41,57 +41,17 @@ function isValidWordLocal(word) {
 // ---------- Express app ----------
 const app = express();
 
-// Allow your Vercel app in production and localhost in dev
-// const FRONTEND_ORIGIN = "https://wordleplus-gamma.vercel.app";
-// const corsOptions = {
-//   origin: (origin, cb) => {
-//     // allow no origin (curl, server-to-server), localhost, and your Vercel domain
-//     if (
-//       !origin ||
-//       origin === FRONTEND_ORIGIN ||
-//       /^http:\/\/localhost(?::\d+)?$/.test(origin)
-//     ) {
-//       cb(null, true);
-//     } else {
-//       cb(null, false);
-//     }
-//   },
-// };
-const FRONTEND_ORIGIN =
-  process.env.NODE_ENV === "production"
-    ? "https://wordleplus-gamma.vercel.app"
-    : "http://localhost:5173";
-//NEW FOR LOCAL WITH DEPOOYED BACKEND
-// const corsOptions = {
-//   origin: (origin, cb) => {
-//     // Allow no origin (e.g., curl, server-to-server), localhost, or the frontend origin
-//     if (
-//       !origin ||
-//       origin === FRONTEND_ORIGIN ||
-//       /^http:\/\/localhost(?::\d+)?$/.test(origin)
-//     ) {
-//       cb(null, true);
-//     } else {
-//       cb(new Error(`CORS blocked: ${origin}`), false); // Log the blocked origin for debugging
-//     }
-//   },
-//   methods: ["GET", "POST", "OPTIONS"],
-//   allowedHeaders: ["Content-Type"],
-// };
+// CORS: allow localhost (dev) and your Vercel site (prod). Allow no-origin (curl/WS upgrades).
 const corsOptions = {
   origin: (origin, cb) => {
-    // Allow no origin, localhost:5173, and future Vercel URL
-    const allowedOrigins = [
+    const allowed = [
       "http://localhost:5173",
       process.env.NODE_ENV === "production"
         ? "https://wordleplus-gamma.vercel.app"
         : null,
-    ].filter(Boolean); // Remove null
-    if (!origin || allowedOrigins.includes(origin)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`CORS blocked: ${origin}`), false);
-    }
+    ].filter(Boolean);
+    if (!origin || allowed.includes(origin)) cb(null, true);
+    else cb(new Error(`CORS blocked: ${origin}`), false);
   },
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
@@ -107,7 +67,7 @@ app.get("/api/validate", (req, res) => {
   res.json({ valid: isValidWordLocal(word) });
 });
 
-// Optional: hot-reload words (disable or protect in prod)
+// Optional: hot-reload words (disable/protect in prod)
 app.post("/api/reload-words", (_req, res) => {
   try {
     loadWords();
@@ -117,6 +77,19 @@ app.post("/api/reload-words", (_req, res) => {
     res.status(500).json({ ok: false });
   }
 });
+
+// ---------- Rooms ----------
+/**
+ * Room schema:
+ * {
+ *   id, mode: 'duel' | 'battle', hostId,
+ *   players: { [socketId]: { name, guesses: [], done: false, ready: false, secret: string|null } },
+ *   started, winner,
+ *   duelReveal?: { [socketId]: secret }, // populated at end of duel
+ *   battle: { secret, started, winner, reveal }
+ * }
+ */
+const rooms = new Map();
 
 function maybeStartDuel(roomId) {
   const room = rooms.get(roomId);
@@ -135,25 +108,16 @@ function maybeStartDuel(roomId) {
       room.players[id].guesses = [];
       room.players[id].done = false;
     });
+    // clear any previous reveal from last round
+    room.duelReveal = undefined;
+    rooms.set(roomId, room);
     io.to(roomId).emit("roomState", sanitizeRoom(room));
   }
 }
+
 // ---------- HTTP + Socket.IO (same server) ----------
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: corsOptions,
-});
-
-/**
- * Room schema:
- * {
- *   id, mode: 'duel' | 'battle', hostId,
- *   players: { [socketId]: { name, guesses: [], done: false, ready: false, secret: string|null } },
- *   started, winner,
- *   battle: { secret, started, winner, reveal }
- * }
- */
-const rooms = new Map();
+const io = new Server(httpServer, { cors: corsOptions });
 
 // ---------- Socket handlers ----------
 io.on("connection", (socket) => {
@@ -174,6 +138,7 @@ io.on("connection", (socket) => {
     // reset room flags
     room.started = false;
     room.winner = null;
+    room.duelReveal = undefined;
 
     io.to(roomId).emit("roomState", sanitizeRoom(room));
     cb?.({ ok: true });
@@ -188,6 +153,7 @@ io.on("connection", (socket) => {
       players: {},
       started: false,
       winner: null,
+      duelReveal: undefined,
       battle: { secret: null, started: false, winner: null, reveal: null },
     };
     room.players[socket.id] = {
@@ -219,9 +185,6 @@ io.on("connection", (socket) => {
     cb?.({ ok: true });
     io.to(roomId).emit("roomState", sanitizeRoom(room));
   });
-  // In server/index.js, after setSecret handler
-
-  // Add or update maybeStartDuel
 
   // ----- DUEL -----
   socket.on("setSecret", ({ roomId, secret }, cb) => {
@@ -244,35 +207,40 @@ io.on("connection", (socket) => {
     // DUEL logic
     if (room.mode === "duel") {
       if (!room.started) return cb?.({ error: "Game not started" });
+
       const player = room.players[socket.id];
       if (!player) return cb?.({ error: "Not in room" });
       if (player.done) return cb?.({ error: "You already finished" });
-    
+
       const oppId = getOpponent(room, socket.id);
       if (!oppId) return cb?.({ error: "Waiting for opponent" });
-    
-      const oppSecret = room.players[oppId].secret;
-      const pattern = scoreGuess(oppSecret, guess);
-      player.guesses.push({ guess: guess.toUpperCase(), pattern });
-    
-      if (guess.toUpperCase() === oppSecret || player.guesses.length >= 6) {
+
+      const opp = room.players[oppId];
+      if (!opp?.secret) return cb?.({ error: "Opponent not ready" });
+
+      const g = (guess || "").toUpperCase();
+      const pattern = scoreGuess(opp.secret, g);
+      player.guesses.push({ guess: g, pattern });
+
+      if (g === opp.secret || player.guesses.length >= 6) {
         player.done = true;
       }
-    
+
       computeDuelWinner(room);
-    
-      // Reveal both secrets at end
+
+      // End-of-round: stop round and reveal both secrets for the victory modal
       const ids = Object.keys(room.players);
       if (ids.length === 2) {
         const [a, b] = ids;
-        const A = room.players[a], B = room.players[b];
+        const A = room.players[a],
+          B = room.players[b];
         const bothDone = A.done && B.done;
         if (room.winner || bothDone) {
-          room.started = false;
-          room.duelReveal = { [a]: A.secret, [b]: B.secret };
+          room.started = false; // mark round ended
+          room.duelReveal = { [a]: A.secret, [b]: B.secret }; // used by client modal
         }
       }
-    
+
       io.to(roomId).emit("roomState", sanitizeRoom(room));
       return cb?.({ ok: true, pattern });
     }
@@ -283,14 +251,16 @@ io.on("connection", (socket) => {
         return cb?.({ error: "Host is spectating this round" });
       }
       if (!room.battle.started) return cb?.({ error: "Battle not started" });
+
       const player = room.players[socket.id];
       if (!player) return cb?.({ error: "Not in room" });
       if (player.done) return cb?.({ error: "No guesses left" });
 
-      const pattern = scoreGuess(room.battle.secret, guess);
-      player.guesses.push({ guess: guess.toUpperCase(), pattern });
+      const g = (guess || "").toUpperCase();
+      const pattern = scoreGuess(room.battle.secret, g);
+      player.guesses.push({ guess: g, pattern });
 
-      if (guess.toUpperCase() === room.battle.secret) {
+      if (g === room.battle.secret) {
         room.battle.winner = socket.id;
         room.battle.started = false;
         room.battle.reveal = room.battle.secret;
@@ -306,6 +276,7 @@ io.on("connection", (socket) => {
           room.battle.reveal = room.battle.secret;
         }
       }
+
       io.to(roomId).emit("roomState", sanitizeRoom(room));
       return cb?.({ ok: true, pattern });
     }
@@ -346,7 +317,7 @@ io.on("connection", (socket) => {
     cb?.({ ok: true });
   });
 
-  socket.on("playAgain", ({ roomId, keepWord = false }, cb) => {
+  socket.on("playAgain", ({ roomId }, cb) => {
     const room = rooms.get(roomId);
     if (!room) return cb?.({ error: "Room not found" });
     if (room.mode !== "battle") return cb?.({ error: "Wrong mode" });
@@ -367,11 +338,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    for (const [id, room] of rooms) {
-      if (room.players[socket.id]) {
-        delete room.players[socket.id];
-        io.to(id).emit("roomState", sanitizeRoom(room));
-        if (Object.keys(room.players).length === 0) rooms.delete(id);
+    // Remove player from each room they’re in
+    for (const [id, r] of rooms) {
+      if (r.players[socket.id]) {
+        delete r.players[socket.id];
+        io.to(id).emit("roomState", sanitizeRoom(r));
+        if (Object.keys(r.players).length === 0) rooms.delete(id);
       }
     }
   });
@@ -409,28 +381,6 @@ function computeDuelWinner(room) {
   if (winner) room.winner = winner;
 }
 
-// function sanitizeRoom(room) {
-//   const players = Object.fromEntries(
-//     Object.entries(room.players).map(([id, p]) => {
-//       const { name, ready, guesses, done } = p;
-//       return [id, { name, ready, guesses, done }];
-//     })
-//   );
-//   return {
-//     id: room.id,
-//     mode: room.mode,
-//     hostId: room.hostId,
-//     players,
-//     started: room.started,
-//     winner: room.winner,
-//     battle: {
-//       started: room.battle.started,
-//       winner: room.battle.winner,
-//       reveal: room.battle.reveal,
-//       hasSecret: !!room.battle.secret,
-//     },
-//   };
-// }
 function sanitizeRoom(room) {
   const players = Object.fromEntries(
     Object.entries(room.players).map(([id, p]) => {
