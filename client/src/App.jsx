@@ -420,151 +420,140 @@ export default function App() {
         </div>
       )}
 
-      {/* DUEL GAME */}
-      {screen === "game" && room?.mode === "duel" && opponent && (
-        <div className="max-w-7xl mx-auto p-4 space-y-4">
-          <h2 className="text-xl font-bold text-center text-gray-700">
-            Fewest guesses wins
-          </h2>
+       {/* DUEL GAME */}
+    {screen === "game" && room?.mode === "duel" && opponent && (
+      <div className="max-w-7xl mx-auto p-4 space-y-4">
+        <h2 className="text-xl font-bold text-center text-gray-700">
+          Fewest guesses wins
+        </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Left: YOU on THEIR word */}
-            <section>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-blue-200 grid place-items-center text-xl">
-                  🧑
-                </div>
-                <div>
-                  <p className="font-semibold">{me?.name} (You)</p>
-                  <p className="text-xs text-muted-foreground">
-                    Guessing opponent’s word
-                  </p>
-                </div>
-              </div>
-              <Board
-                guesses={me?.guesses || []}
-                activeGuess={currentGuess}
-                errorShakeKey={shakeKey}
-                errorActiveRow={showActiveError}
-              />
-            </section>
-
-            {/* Right: OPPONENT on YOUR word */}
-            <section>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-pink-200 grid place-items-center text-xl">
-                  🧑‍💻
-                </div>
-                <div>
-                  <p className="font-semibold">{opponent?.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Guessing your word
-                  </p>
-                </div>
-              </div>
-              <Board guesses={opponent?.guesses || []} activeGuess="" />
-            </section>
-          </div>
-
-          <Keyboard onKeyPress={handleDuelKey} letterStates={letterStates} />
-        </div>
-      )}
-
-      {/* BATTLE GAME */}
-      {screen === "game" && room?.mode === "battle" && (
-        isHost ? (
-          // HOST SPECTATE WALL
-          <div className="max-w-7xl mx-auto p-4 space-y-6">
-            <h2 className="text-xl font-bold text-slate-700">
-              Host Spectate View
-            </h2>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {Object.entries(room?.players || {})
-                .filter(([id]) => id !== room?.hostId)
-                .map(([id, p]) => (
-                  <div key={id} className="bg-card/60 backdrop-blur">
-                    <div className="pb-2">
-                      <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-full bg-muted grid place-items-center text-sm font-semibold">
-                          {getInitials(p.name)}
-                        </div>
-                        <div>
-                          <p className="text-base">{p.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {p.done ? "Done" : `${p.guesses?.length ?? 0}/6`}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <Board guesses={p.guesses || []} tile={50} gap={8} />
-                    </div>
-                  </div>
-                ))}
-            </div>
-
-            {(room?.battle?.winner || room?.battle?.reveal) &&
-              isHost &&
-              !room?.battle?.started && (
-                <div className="flex gap-2 mt-4">
-                  <Input
-                    placeholder="Enter new secret word"
-                    value={hostWord}
-                    onChange={(e) => setHostWord(e.target.value)}
-                    maxLength={5}
-                    className="w-40"
-                  />
-                  <Button
-                    onClick={() => {
-                      if (hostWord.trim().length !== 5) {
-                        setMsg("Secret word must be 5 letters");
-                        return;
-                      }
-                      setWordAndStart();
-                    }}
-                  >
-                    Play again
-                  </Button>
-                </div>
-              )}
-          </div>
-        ) : (
-          // PLAYER VIEW
-          <div className="max-w-7xl mx-auto p-4 space-y-6">
-            <h2 className="text-xl font-bold text-center text-slate-700">
-              Battle Royale
-            </h2>
-            <div className="bg-card/60 backdrop-blur">
-              <div className="pb-2">
-                <p className="text-base">Your Board</p>
-                <p>
-                  {room?.battle?.started
-                    ? "Round in progress"
-                    : "Waiting to start"}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Left: YOU */}
+          <section>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-full bg-blue-200 grid place-items-center text-xl">🧑</div>
+              <div>
+                <p className="font-semibold">{me?.name} (You)</p>
+                <p className="text-xs text-muted-foreground">
+                  Guessing opponent’s word
                 </p>
               </div>
+            </div>
+            <Board
+              guesses={me?.guesses || []}
+              activeGuess={currentGuess}
+              errorShakeKey={shakeKey}
+              errorActiveRow={showActiveError}
+            />
+          </section>
+
+          {/* Right: OPPONENT */}
+          <section>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-full bg-pink-200 grid place-items-center text-xl">🧑‍💻</div>
               <div>
-                <Board
-                  guesses={me?.guesses || []}
-                  activeGuess={currentGuess}
-                  tile={56}
-                  gap={8}
-                  errorShakeKey={shakeKey}
-                  errorActiveRow={showActiveError}
-                />
-                {canGuessBattle && (
-                  <div className="mt-4">
-                    <Keyboard
-                      onKeyPress={handleBattleKey}
-                      letterStates={letterStates}
-                    />
-                  </div>
-                )}
+                <p className="font-semibold">{opponent?.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  Guessing your word
+                </p>
               </div>
             </div>
+            <Board guesses={opponent?.guesses || []} activeGuess="" />
+          </section>
+        </div>
+
+        <Keyboard onKeyPress={handleDuelKey} letterStates={letterStates} />
+      </div>
+    )}
+
+      {/* BATTLE GAME */}
+      
+    {/* BATTLE GAME */}
+    {screen === "game" && room?.mode === "battle" && (
+      isHost ? (
+        // Host Spectate
+        <div className="max-w-7xl mx-auto p-4 space-y-6">
+          <h2 className="text-xl font-bold text-slate-700">Host Spectate View</h2>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {Object.entries(room?.players || {})
+              .filter(([id]) => id !== room?.hostId)
+              .map(([id, p]) => (
+                <div key={id}>
+                  <div className="pb-2 flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full bg-muted grid place-items-center text-sm font-semibold">
+                      {getInitials(p.name)}
+                    </div>
+                    <div>
+                      <p className="text-base">{p.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.done ? "Done" : `${p.guesses?.length ?? 0}/6`}
+                      </p>
+                    </div>
+                  </div>
+                  <Board guesses={p.guesses || []} tile={50} gap={8} />
+                </div>
+              ))}
           </div>
-        )
-      )}
+
+          {(room?.battle?.winner || room?.battle?.reveal) && !room?.battle?.started && (
+            <div className="flex gap-2 mt-4">
+              <Input
+                placeholder="Enter new secret word"
+                value={hostWord}
+                onChange={(e) => setHostWord(e.target.value)}
+                maxLength={5}
+                className="w-40"
+              />
+              <Button onClick={setWordAndStart}>Play again</Button>
+            </div>
+          )}
+        </div>
+      ) : (
+        // Player view
+        <div className="max-w-7xl mx-auto p-4 space-y-6">
+          <h2 className="text-xl font-bold text-center text-slate-700">Battle Royale</h2>
+          <Board
+            guesses={me?.guesses || []}
+            activeGuess={currentGuess}
+            tile={56}
+            gap={8}
+            errorShakeKey={shakeKey}
+            errorActiveRow={showActiveError}
+          />
+          {canGuessBattle && (
+            <Keyboard onKeyPress={handleBattleKey} letterStates={letterStates} />
+          )}
+        </div>
+      )
+    )}
+      {/* Victory Modal */}
+{room && (
+  <VictoryModal
+    open={showVictory}
+    onOpenChange={setShowVictory}
+    mode={room.mode}
+    winnerName={
+      room.mode === "duel"
+        ? (room.winner === "draw" ? "" :
+           room.winner === socket.id ? me?.name : opponent?.name)
+        : (room.battle?.winner
+            ? (room.battle.winner === socket.id
+                ? me?.name
+                : players.find(p => p.id === room.battle.winner)?.name)
+            : "")
+    }
+    leftName={me?.name}
+    rightName={opponent?.name}
+    {...(() => {
+      if (room.mode === "duel") {
+        const { leftSecret, rightSecret } = deriveDuelSecrets(room, me, opponent);
+        return { leftSecret, rightSecret };
+      } else {
+        return { battleSecret: room.battle?.reveal };
+      }
+    })()}
+  />
+)}
     </div>
   );
 }
@@ -618,31 +607,3 @@ function PlayersList({ players, hostId, showProgress, className }) {
   );
 }
 
-{/* Victory Modal */}
-{room && (
-  <VictoryModal
-    open={showVictory}
-    onOpenChange={setShowVictory}
-    mode={room.mode}
-    winnerName={
-      room.mode === "duel"
-        ? (room.winner === "draw" ? "" :
-           room.winner === socket.id ? me?.name : opponent?.name)
-        : (room.battle?.winner
-            ? (room.battle.winner === socket.id
-                ? me?.name
-                : players.find(p => p.id === room.battle.winner)?.name)
-            : "")
-    }
-    leftName={me?.name}
-    rightName={opponent?.name}
-    {...(() => {
-      if (room.mode === "duel") {
-        const { leftSecret, rightSecret } = deriveDuelSecrets(room, me, opponent);
-        return { leftSecret, rightSecret };
-      } else {
-        return { battleSecret: room.battle?.reveal };
-      }
-    })()}
-  />
-)}
