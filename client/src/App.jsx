@@ -61,6 +61,16 @@ export default function App() {
   const canGuessBattle =
     room?.mode === "battle" && room?.battle?.started && !isHost;
 
+    function duelPlayAgain() {
+      socket.emit("duelPlayAgain", { roomId }, (resp) => {
+        if (resp?.error) return setMsg(resp.error);
+        setCurrentGuess("");
+        // After reset, players need to set new secrets again.
+        setScreen("lobby"); // or stay on game if you prefer; lobby is clearer
+      });
+    }
+
+
   function getInitials(name = "") {
     const parts = name.trim().split(/\s+/).slice(0, 2);
     return parts.map((p) => p[0]?.toUpperCase() || "").join("");
@@ -408,6 +418,11 @@ export default function App() {
               Winner: {room.winner === "draw" ? "Draw" : room.winner === socket.id ? "You" : "Opponent"}
             </p>
           )}
+          {(room?.winner || !room?.started) && (
+  <div className="flex justify-center mt-3">
+    <Button onClick={duelPlayAgain}>Play again</Button>
+  </div>
+)}
           {!!msg && <p className="text-red-600 text-center mt-2">{msg}</p>}
         </div>
       )}
