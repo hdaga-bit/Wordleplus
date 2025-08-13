@@ -125,11 +125,13 @@ function maybeStartDuel(roomId) {
   const ids = Object.keys(room.players);
   if (ids.length !== 2) return;
 
-  const allReady = ids.every(id => room.players[id].ready && room.players[id].secret);
+  const allReady = ids.every(
+    (id) => room.players[id].ready && room.players[id].secret
+  );
   if (allReady && !room.started) {
     room.started = true;
     // fresh state at start
-    ids.forEach(id => {
+    ids.forEach((id) => {
       room.players[id].guesses = [];
       room.players[id].done = false;
     });
@@ -155,6 +157,28 @@ const rooms = new Map();
 
 // ---------- Socket handlers ----------
 io.on("connection", (socket) => {
+  // DUEL: play again (reset room to pre-start state)
+  socket.on("duelPlayAgain", ({ roomId }, cb) => {
+    const room = rooms.get(roomId);
+    if (!room) return cb?.({ error: "Room not found" });
+    if (room.mode !== "duel") return cb?.({ error: "Wrong mode" });
+
+    // reset per‑player state
+    Object.values(room.players).forEach((p) => {
+      p.guesses = [];
+      p.done = false;
+      p.ready = false;
+      p.secret = null;
+    });
+
+    // reset room flags
+    room.started = false;
+    room.winner = null;
+
+    io.to(roomId).emit("roomState", sanitizeRoom(room));
+    cb?.({ ok: true });
+  });
+
   socket.on("createRoom", ({ name, mode = "duel" }, cb) => {
     const id = Math.random().toString(36).slice(2, 8).toUpperCase();
     const room = {
@@ -196,10 +220,9 @@ io.on("connection", (socket) => {
     io.to(roomId).emit("roomState", sanitizeRoom(room));
   });
   // In server/index.js, after setSecret handler
-  
 
   // Add or update maybeStartDuel
-  
+
   // ----- DUEL -----
   socket.on("setSecret", ({ roomId, secret }, cb) => {
     const room = rooms.get(roomId);
@@ -235,7 +258,20 @@ io.on("connection", (socket) => {
       if (guess.toUpperCase() === oppSecret || player.guesses.length >= 6) {
         player.done = true;
       }
+
       computeDuelWinner(room);
+      const ids = Object.keys(room.players);
+      if (ids.length === 2) {
+        const [a, b] = ids;
+        const A = room.players[a],
+          B = room.players[b];
+        const bothDone = A.done && B.done;
+        if (room.winner || bothDone) {
+          room.started = false; // round over
+        }
+      }
+
+
       io.to(roomId).emit("roomState", sanitizeRoom(room));
       return cb?.({ ok: true, pattern });
     }
@@ -243,8 +279,8 @@ io.on("connection", (socket) => {
     // BATTLE logic
     if (room.mode === "battle") {
       if (socket.id === room.hostId) {
-             return cb?.({ error: "Host is spectating this round" });
-           }
+        return cb?.({ error: "Host is spectating this round" });
+      }
       if (!room.battle.started) return cb?.({ error: "Battle not started" });
       const player = room.players[socket.id];
       if (!player) return cb?.({ error: "Not in room" });
@@ -411,7 +447,7 @@ function sanitizeRoom(room) {
     battle: {
       started: room.battle.started,
       winner: room.battle.winner,
-      reveal: room.battle.reveal,   // use this for Battle Royale reveal
+      reveal: room.battle.reveal, // use this for Battle Royale reveal
       hasSecret: !!room.battle.secret,
     },
   };
