@@ -260,19 +260,20 @@ io.on("connection", (socket) => {
       }
 
       computeDuelWinner(room);
-      const ids = Object.keys(room.players);
-      if (ids.length === 2) {
-        const [a, b] = ids;
-        const A = room.players[a],
-          B = room.players[b];
-        const bothDone = A.done && B.done;
-        if (room.winner || bothDone) {
-          room.started = false; // round over
-        }
-      }
 
+// If round ended, reveal both secrets for the victory modal
+const ids = Object.keys(room.players);
+if (ids.length === 2) {
+  const [a, b] = ids;
+  const A = room.players[a], B = room.players[b];
+  const bothDone = A.done && B.done;
+  if (room.winner || bothDone) {
+    room.started = false; // mark ended (optional but useful)
+    room.duelReveal = { [a]: A.secret, [b]: B.secret }; // NEW
+  }
+}
 
-      io.to(roomId).emit("roomState", sanitizeRoom(room));
+io.to(roomId).emit("roomState", sanitizeRoom(room));
       return cb?.({ ok: true, pattern });
     }
 
@@ -444,6 +445,7 @@ function sanitizeRoom(room) {
     players,
     started: room.started,
     winner: room.winner,
+    duelReveal: room.duelReveal || undefined,
     battle: {
       started: room.battle.started,
       winner: room.battle.winner,
