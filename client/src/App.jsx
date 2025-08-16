@@ -90,8 +90,6 @@ export default function App() {
   const [currentGuess, setCurrentGuess] = useState("");
   const [showVictory, setShowVictory] = useState(false);
 
-  // “Round started” popout for Duel
-  const [showDuelStart, setShowDuelStart] = useState(false);
 
   // Connection + rejoin
   const [connected, setConnected] = useState(socket.connected);
@@ -177,23 +175,45 @@ export default function App() {
   const savedName = localStorage.getItem(LS_LAST_NAME) || "";
   const canRejoin = connected && !room?.id && savedRoomId && savedName && rejoinOffered;
   const doRejoin = () => {
-    setName(savedName);
-    setRoomId(savedRoomId);
-    socket.emit("joinRoom", { name: savedName, roomId: savedRoomId }, (resp) => {
-      if (resp?.error) setMsg(resp.error);
-      else {
-        setScreen("lobby");
-        persistSession({ name: savedName, roomId: savedRoomId, mode });
-        setRejoinOffered(false);
-      }
-    });
+    const savedRoomId = localStorage.getItem(LS_LAST_ROOM);
+    const savedName = localStorage.getItem(LS_LAST_NAME);
+    const oldId = localStorage.getItem(LS_LAST_SOCKET + ".old");
+  
+    if (!savedRoomId || !savedName) return;
+  
+    // Prefer RESUME to keep guesses
+    if (oldId) {
+      socket.emit("resume", { roomId: savedRoomId, oldId }, (resp) => {
+        if (resp?.error) {
+          // Fallback to joinRoom only if resume fails
+          socket.emit("joinRoom", { name: savedName, roomId: savedRoomId }, (resp2) => {
+            if (resp2?.error) setMsg(resp2.error);
+            else {
+              setScreen("lobby");
+              setRejoinOffered(false);
+            }
+          });
+        } else {
+          setScreen("game"); // server will push correct roomState
+          setRejoinOffered(false);
+        }
+      });
+    } else {
+      // No oldId stored: fallback
+      socket.emit("joinRoom", { name: savedName, roomId: savedRoomId }, (resp2) => {
+        if (resp2?.error) setMsg(resp2.error);
+        else {
+          setScreen("lobby");
+          setRejoinOffered(false);
+        }
+      });
+    }
   };
 
   // Show victory & duel start notices
   useEffect(() => {
     if (!room) return;
     if (room.mode === "duel") {
-      if (room.started) setShowDuelStart(true);
       const ended = !!room.winner || room.started === false;
       if (ended) setShowVictory(true);
     }
@@ -512,12 +532,7 @@ export default function App() {
           <Keyboard onKeyPress={handleDuelKey} letterStates={letterStates} />
 
           {/* Duel start notice (closeable, non-blocking) */}
-          <NoticeModal
-            open={!!showDuelStart && !!room?.started}
-            onClose={() => setShowDuelStart(false)}
-            title="Round started"
-            text="Good luck! Make your guesses."
-          />
+         
         </div>
       )}
 
@@ -534,7 +549,22 @@ export default function App() {
                     <div className="pb-2 flex items-center gap-3">
                       <div className="h-9 w-9 rounded-full bg-muted grid place-items-center text-sm font-semibold">
                         {((p.name || "").trim().split(/\s+/).slice(0, 2).map(x => x[0]?.toUpperCase()).join("")) || "?"}
+                        <p className="text-base">{p.name}</p>
+<div className="flex items-center gap-1 mt-0.5">
+  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+    W:{p.wins ?? 0}
+  </span>
+  <span className={cn(
+    "text-[10px] px-1.5 py-0.5 rounded ring-1",
+    (p.streak ?? 0) > 1
+      ? "bg-emerald-100 text-emerald-800 ring-emerald-300 animate-[glow_1.8s_ease-in-out_infinite]"
+      : "bg-indigo-50 text-indigo-700 ring-indigo-200"
+  )}>
+    Stk:{p.streak ?? 0}
+  </span>
+</div>
                       </div>
+                    
                       <div>
                         <p className="text-base">{p.name}</p>
                         <p className="text-xs text-muted-foreground">
@@ -620,7 +650,7 @@ export default function App() {
   );
 }
 
-function PlayersList({ players, hostId, showProgress, showStats, className }) {
+function PlayersList({ players, hostId, showProgress, showStats = true, className }) {
   return (
     <section className={cn("space-y-3", className)} aria-labelledby="players-heading">
       <h2 id="players-heading" className="text-base font-semibold tracking-tight">Players</h2>
@@ -629,10 +659,15 @@ function PlayersList({ players, hostId, showProgress, showStats, className }) {
         {players.map((p) => {
           const progress = p.done ? "Done" : `${p.guesses?.length ?? 0}/6`;
           const isHost = p.id === hostId;
+          const onStreak = (p.streak ?? 0) > 1; // 2+ looks more “streaky”
+
           return (
-            <Card key={p.id} className="border bg-card/60 backdrop-blur">
+            <Card key={p.id} className={cn(
+              "border bg-card/60 backdrop-blur transition-shadow",
+              onStreak && "ring-1 ring-emerald-300/60 shadow-[0_0_24px_-8px_rgba(16,185,129,.5)]"
+            )}>
               <CardHeader className="py-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <CardTitle className="text-base flex items-center gap-2">
                     <span className="font-semibold">{p.name}</span>
                     {isHost && (
@@ -641,25 +676,37 @@ function PlayersList({ players, hostId, showProgress, showStats, className }) {
                       </span>
                     )}
                   </CardTitle>
-                  {showProgress && (
-                    <CardDescription className="text-xs font-medium text-foreground/80">
-                      {progress}
-                    </CardDescription>
-                  )}
-                </div>
-                {showStats && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
-                      Wins: <b>{p.wins ?? 0}</b>
-                    </span>
-                    <span className="text-[11px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200">
-                      Streak: <b>{p.streak ?? 0}</b>
-                    </span>
-                    {p.disconnected && (
-                      <span className="text-[11px] px-2 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-amber-200">
-                        Reconnecting…
-                      </span>
+
+                  {/* Right-aligned: progress + compact stats line */}
+                  <div className="flex items-center gap-2">
+                    {showProgress && (
+                      <CardDescription className="text-xs font-medium text-foreground/80">
+                        {progress}
+                      </CardDescription>
                     )}
+                    {showStats && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                          W:{p.wins ?? 0}
+                        </span>
+                        <span className={cn(
+                          "text-[10px] px-1.5 py-0.5 rounded ring-1",
+                          onStreak
+                            ? "bg-emerald-100 text-emerald-800 ring-emerald-300 animate-[glow_1.8s_ease-in-out_infinite]"
+                            : "bg-indigo-50 text-indigo-700 ring-indigo-200"
+                        )}>
+                          Stk:{p.streak ?? 0}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {showStats && p.disconnected && (
+                  <div className="mt-2">
+                    <span className="text-[11px] px-2 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+                      Reconnecting…
+                    </span>
                   </div>
                 )}
               </CardHeader>
@@ -670,6 +717,14 @@ function PlayersList({ players, hostId, showProgress, showStats, className }) {
           );
         })}
       </div>
+
+      {/* streak glow keyframes */}
+      <style>{`
+        @keyframes glow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,.35) }
+          50% { box-shadow: 0 0 16px 0 rgba(16,185,129,.55) }
+        }
+      `}</style>
     </section>
   );
 }
