@@ -1,3 +1,4 @@
+// FULL FILE — drop in
 import React, { useEffect, useMemo, useState } from "react";
 import { socket } from "./socket";
 import Board from "./components/Board.jsx";
@@ -16,14 +17,13 @@ import {
   CardContent,
 } from "@/components/ui/card";
 
-// --- localStorage keys for session persistence ----
 const LS_LAST_ROOM = "wp.lastRoomId";
 const LS_LAST_NAME = "wp.lastName";
 const LS_LAST_MODE = "wp.lastMode";
 const LS_LAST_SOCKET = "wp.lastSocketId";
 
-// Lightweight connection banner
-function ConnectionBar({ connected, reconnecting, canRejoin, onRejoin, savedRoomId }) {
+// Small banner for connection + rejoin
+function ConnectionBar({ connected, canRejoin, onRejoin, savedRoomId }) {
   if (!connected) {
     return (
       <div className="w-full bg-yellow-100 text-yellow-900 text-sm py-2 px-3 rounded mb-3">
@@ -42,6 +42,25 @@ function ConnectionBar({ connected, reconnecting, canRejoin, onRejoin, savedRoom
   return null;
 }
 
+// Simple notice modal for "Round Started"
+function NoticeModal({ open, onClose, title, text }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-center bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-md mx-4 rounded-xl bg-white dark:bg-neutral-900 shadow-xl ring-1 ring-black/10 animate-[popIn_200ms_ease-out]">
+        <div className="p-6">
+          <h3 className="text-xl font-bold">{title}</h3>
+          <p className="mt-2 text-sm text-muted-foreground">{text}</p>
+          <div className="mt-4 flex justify-end">
+            <Button onClick={onClose} autoFocus>Close</Button>
+          </div>
+        </div>
+      </div>
+      <style>{`@keyframes popIn{0%{opacity:0;transform:translateY(6px) scale(.96)}100%{opacity:1;transform:translateY(0) scale(1)}}`}</style>
+    </div>
+  );
+}
+
 function useRoomState() {
   const [room, setRoom] = useState(null);
   useEffect(() => {
@@ -53,10 +72,10 @@ function useRoomState() {
 }
 
 export default function App() {
-  const [screen, setScreen] = useState("home"); // home | lobby | game
+  const [screen, setScreen] = useState("home");
   const [name, setName] = useState(localStorage.getItem(LS_LAST_NAME) || "");
   const [roomId, setRoomId] = useState(localStorage.getItem(LS_LAST_ROOM) || "");
-  const [mode, setMode] = useState(localStorage.getItem(LS_LAST_MODE) || "duel"); // duel | battle
+  const [mode, setMode] = useState(localStorage.getItem(LS_LAST_MODE) || "duel");
 
   // Duel
   const [secret, setSecret] = useState("");
@@ -71,105 +90,98 @@ export default function App() {
   const [currentGuess, setCurrentGuess] = useState("");
   const [showVictory, setShowVictory] = useState(false);
 
-  // Connection state (for banner + rejoin)
-  const [conn, setConn] = useState({
-    connected: socket.connected,
-    reconnecting: false,
-    err: null,
-  });
+  // “Round started” popout for Duel
+  const [showDuelStart, setShowDuelStart] = useState(false);
+
+  // Connection + rejoin
+  const [connected, setConnected] = useState(socket.connected);
   const [rejoinOffered, setRejoinOffered] = useState(false);
 
-  // --- Helpers ----------------------------------------------------
-  function allGreenGuessWord(guesses = []) {
-    const g = guesses.find((g) => g.pattern?.every((p) => p === "green"));
-    return g?.guess;
-  }
-  function deriveDuelSecrets(room, me, opponent) {
-    const leftSecret =
-      allGreenGuessWord(opponent?.guesses) ||
-      room?.duelReveal?.[me?.id || socket.id];
-    const rightSecret =
-      allGreenGuessWord(me?.guesses) || room?.duelReveal?.[opponent?.id];
-    return { leftSecret, rightSecret };
-  }
-  function getInitials(str = "") {
-    const parts = str.trim().split(/\s+/).slice(0, 2);
-    return parts.map((p) => p[0]?.toUpperCase() || "").join("");
-  }
+  // helpers
+  const me = useMemo(() => room?.players && room.players[socket.id], [room]);
+  const players = useMemo(
+    () => room?.players ? Object.entries(room.players).map(([id, p]) => ({ id, ...p })) : [],
+    [room]
+  );
+  const opponent = useMemo(() => {
+    if (!room?.players) return null;
+    const entries = Object.entries(room.players);
+    const other = entries.find(([id]) => id !== socket.id);
+    return other ? { id: other[0], ...other[1] } : null;
+  }, [room]);
+
+  const isHost = room?.hostId === socket.id;
+  const canGuessDuel = room?.mode === "duel" && room?.started && !opponent?.disconnected;
+  const canGuessBattle = room?.mode === "battle" && room?.battle?.started && !isHost;
+
   function persistSession({ name: n, roomId: r, mode: m }) {
     if (n) localStorage.setItem(LS_LAST_NAME, n);
     if (r) localStorage.setItem(LS_LAST_ROOM, r);
     if (m) localStorage.setItem(LS_LAST_MODE, m);
   }
 
-  const me = useMemo(() => room?.players && room.players[socket.id], [room]);
-  const players = useMemo(() => {
-    const p = room?.players
-      ? Object.entries(room.players).map(([id, p]) => ({ id, ...p }))
-      : [];
-    return p;
-  }, [room]);
-  const opponent = useMemo(() => {
-    const list = room?.players ? Object.entries(room.players) : [];
-    const other = list.find(([id]) => id !== socket.id);
-    return other ? { id: other[0], ...other[1] } : null;
-  }, [room]);
+  function allGreenGuessWord(guesses = []) {
+    const g = guesses.find((g) => g.pattern?.every((p) => p === "green"));
+    return g?.guess;
+  }
+  function deriveDuelSecrets(room, me, opp) {
+    const leftSecret =
+      allGreenGuessWord(opp?.guesses) ||
+      room?.duelReveal?.[me?.id || socket.id];
+    const rightSecret =
+      allGreenGuessWord(me?.guesses) ||
+      room?.duelReveal?.[opp?.id];
+    return { leftSecret, rightSecret };
+  }
 
-  const isHost = room?.hostId === socket.id;
-  const canGuessDuel = room?.mode === "duel" && room?.started;
-  const canGuessBattle =
-    room?.mode === "battle" && room?.battle?.started && !isHost;
-
-  // --- Socket lifecycle: connection + reconnection UX -------------
+  // socket lifecycle
   useEffect(() => {
     const onConnect = () => {
+      setConnected(true);
       localStorage.setItem(LS_LAST_SOCKET, socket.id);
-      setConn({ connected: true, reconnecting: false, err: null });
-      // If we just reconnected and there's a saved room, offer to rejoin
+
+      // Try RESUME if we have an old id + room
       const savedRoom = localStorage.getItem(LS_LAST_ROOM);
-      const savedName = localStorage.getItem(LS_LAST_NAME);
-      if (savedRoom && savedName) {
-        // only offer if not already in a room screen
-        if (!room?.id) setRejoinOffered(true);
+      const oldId = localStorage.getItem(LS_LAST_SOCKET + ".old");
+      if (savedRoom && oldId && (!room || !room.id)) {
+        socket.emit("resume", { roomId: savedRoom, oldId }, (resp) => {
+          if (resp?.error) {
+            // fallback: offer manual rejoin
+            setRejoinOffered(true);
+          } else {
+            setScreen("game"); // will be corrected by server state (lobby/game)
+            setRejoinOffered(false);
+          }
+        });
+      } else {
+        const savedName = localStorage.getItem(LS_LAST_NAME);
+        if (savedRoom && savedName && !room?.id) setRejoinOffered(true);
       }
     };
-    const onDisconnect = (reason) => {
-      setConn((s) => ({ ...s, connected: false }));
+    const onDisconnect = () => {
+      // remember the last socket id as "old" for resume
+      const last = localStorage.getItem(LS_LAST_SOCKET);
+      if (last) localStorage.setItem(LS_LAST_SOCKET + ".old", last);
+      setConnected(false);
     };
-    const onReconAttempt = () =>
-      setConn((s) => ({ ...s, reconnecting: true, connected: false }));
-    const onReconnected = () =>
-      setConn({ connected: true, reconnecting: false, err: null });
-    const onManagerError = (err) =>
-      setConn((s) => ({ ...s, err: err?.message || String(err) }));
-
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
-    socket.io.on("reconnect_attempt", onReconAttempt);
-    socket.io.on("reconnect", onReconnected);
-    socket.io.on("error", onManagerError);
-
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
-      socket.io.off("reconnect_attempt", onReconAttempt);
-      socket.io.off("reconnect", onReconnected);
-      socket.io.off("error", onManagerError);
     };
   }, [room?.id]);
 
-  const savedRoomId = typeof window !== "undefined" ? localStorage.getItem(LS_LAST_ROOM) : "";
-  const savedName = typeof window !== "undefined" ? localStorage.getItem(LS_LAST_NAME) : "";
-  const canRejoin = conn.connected && !room?.id && savedRoomId && savedName && rejoinOffered;
-
+  // Rejoin banner
+  const savedRoomId = localStorage.getItem(LS_LAST_ROOM) || "";
+  const savedName = localStorage.getItem(LS_LAST_NAME) || "";
+  const canRejoin = connected && !room?.id && savedRoomId && savedName && rejoinOffered;
   const doRejoin = () => {
-    if (!savedRoomId || !savedName) return;
     setName(savedName);
     setRoomId(savedRoomId);
     socket.emit("joinRoom", { name: savedName, roomId: savedRoomId }, (resp) => {
-      if (resp?.error) {
-        setMsg(resp.error);
-      } else {
+      if (resp?.error) setMsg(resp.error);
+      else {
         setScreen("lobby");
         persistSession({ name: savedName, roomId: savedRoomId, mode });
         setRejoinOffered(false);
@@ -177,10 +189,11 @@ export default function App() {
     });
   };
 
-  // --- Victory modal visibility -----------------------------------
+  // Show victory & duel start notices
   useEffect(() => {
     if (!room) return;
     if (room.mode === "duel") {
+      if (room.started) setShowDuelStart(true);
       const ended = !!room.winner || room.started === false;
       if (ended) setShowVictory(true);
     }
@@ -189,16 +202,16 @@ export default function App() {
         setShowVictory(true);
       }
     }
-  }, [room?.mode, room?.winner, room?.started, room?.battle?.started, room?.battle?.winner, room?.battle?.reveal]);
+  }, [room?.mode, room?.started, room?.winner, room?.battle?.started, room?.battle?.winner, room?.battle?.reveal]);
 
-  // Clear transient message after 2s
+  // small transient toast support
   useEffect(() => {
     if (!msg) return;
     const t = setTimeout(() => setMsg(""), 2000);
     return () => clearTimeout(t);
   }, [msg]);
 
-  // --- Create / Join ------------------------------------------------
+  // actions
   function create() {
     socket.emit("createRoom", { name, mode }, (resp) => {
       if (resp?.roomId) {
@@ -220,7 +233,6 @@ export default function App() {
     });
   }
 
-  // --- Duel ---------------------------------------------------------
   async function submitSecret() {
     const v = await validateWord(secret);
     if (!v.valid) return setMsg("Secret must be a valid 5-letter word");
@@ -258,7 +270,6 @@ export default function App() {
     });
   }
 
-  // --- Battle -------------------------------------------------------
   async function setWordAndStart() {
     const v = await validateWord(hostWord);
     if (!v.valid) return setMsg("Host word must be valid");
@@ -290,17 +301,8 @@ export default function App() {
       }
     });
   }
-  function playAgain() {
-    socket.emit("playAgain", { roomId, keepWord: false }, (r) => {
-      if (r?.error) setMsg(r.error);
-      else {
-        setShowVictory(false);
-        setHostWord("");
-      }
-    });
-  }
 
-  // --- Keyboards ----------------------------------------------------
+  // keyboards
   const handleDuelKey = (key) => {
     if (!canGuessDuel) return;
     if (key === "ENTER") submitDuelGuess();
@@ -325,13 +327,9 @@ export default function App() {
   useEffect(() => {
     const onKeyDown = (e) => {
       const key =
-        e.key === "Enter"
-          ? "ENTER"
-          : e.key === "Backspace"
-          ? "BACKSPACE"
-          : /^[a-zA-Z]$/.test(e.key)
-          ? e.key.toUpperCase()
-          : null;
+        e.key === "Enter" ? "ENTER" :
+        e.key === "Backspace" ? "BACKSPACE" :
+        /^[a-zA-Z]$/.test(e.key) ? e.key.toUpperCase() : null;
       if (!key) return;
       if (room?.mode === "duel") handleDuelKey(key);
       if (room?.mode === "battle") handleBattleKey(key);
@@ -340,7 +338,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [room?.mode, canGuessDuel, canGuessBattle, currentGuess]);
 
-  // Screen transitions from server pushes
+  // screen transitions
   useEffect(() => {
     if (room?.mode === "duel" && room?.started) {
       setScreen("game");
@@ -352,29 +350,14 @@ export default function App() {
       setScreen("game");
       setCurrentGuess("");
     }
-  }, [
-    room?.started,
-    room?.battle?.started,
-    room?.battle?.winner,
-    room?.battle?.reveal,
-    room?.mode,
-  ]);
+  }, [room?.started, room?.battle?.started, room?.battle?.winner, room?.battle?.reveal, room?.mode]);
 
   const letterStates = useMemo(() => {
     const states = {};
     (me?.guesses || []).forEach(({ guess, pattern }) => {
       guess.split("").forEach((letter, i) => {
-        const state =
-          pattern[i] === "green"
-            ? "correct"
-            : pattern[i] === "yellow"
-            ? "present"
-            : "absent";
-        if (
-          !states[letter] ||
-          state === "correct" ||
-          (state === "present" && states[letter] === "absent")
-        ) {
+        const state = pattern[i] === "green" ? "correct" : pattern[i] === "yellow" ? "present" : "absent";
+        if (!states[letter] || state === "correct" || (state === "present" && states[letter] === "absent")) {
           states[letter] = state;
         }
       });
@@ -382,20 +365,30 @@ export default function App() {
     return states;
   }, [me?.guesses]);
 
+  const goHome = () => {
+    // Back to “home” while preserving saved session
+    setScreen("home");
+    setCurrentGuess("");
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-4 font-sans">
-      {/* Connection / Rejoin UI */}
       <ConnectionBar
-        connected={conn.connected}
-        reconnecting={conn.reconnecting}
+        connected={connected}
         canRejoin={canRejoin}
         onRejoin={doRejoin}
         savedRoomId={savedRoomId}
       />
 
-      <h1 className="text-3xl font-bold text-red-600 mb-6">Friendle Clone</h1>
+      {/* Title links "home" */}
+      <button
+        onClick={goHome}
+        className="text-3xl font-bold text-red-600 mb-6 hover:opacity-80 transition-opacity"
+        aria-label="Go to home"
+      >
+        Friendle Clone
+      </button>
 
-      {/* HOME */}
       {screen === "home" && (
         <div className="grid gap-4 max-w-md mx-auto">
           <input
@@ -407,38 +400,16 @@ export default function App() {
 
           <div className="flex space-x-6">
             <label className="inline-flex items-center space-x-2">
-              <input
-                type="radio"
-                name="mode"
-                checked={mode === "duel"}
-                onChange={() => setMode("duel")}
-                className="form-radio"
-              />
+              <input type="radio" name="mode" checked={mode === "duel"} onChange={() => setMode("duel")} />
               <span>Duel (1v1)</span>
             </label>
             <label className="inline-flex items-center space-x-2">
-              <input
-                type="radio"
-                name="mode"
-                checked={mode === "battle"}
-                onChange={() => setMode("battle")}
-                className="form-radio"
-              />
+              <input type="radio" name="mode" checked={mode === "battle"} onChange={() => setMode("battle")} />
               <span>Battle Royale</span>
             </label>
           </div>
 
-          <button
-            disabled={!name}
-            onClick={create}
-            className={`w-full py-2 rounded text-white font-semibold ${
-              name
-                ? "bg-red-600 hover:bg-red-700"
-                : "bg-gray-400 cursor-not-allowed"
-            }`}
-          >
-            Create Room
-          </button>
+          <Button disabled={!name} onClick={create} className="w-full">Create Room</Button>
 
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <input
@@ -447,65 +418,41 @@ export default function App() {
               value={roomId}
               onChange={(e) => setRoomId(e.target.value.toUpperCase())}
             />
-            <button
-              disabled={!name || !roomId}
-              onClick={join}
-              className={`px-4 py-2 rounded text-white font-semibold ${
-                name && roomId
-                  ? "bg-red-600 hover:bg-red-700"
-                  : "bg-gray-400 cursor-not-allowed"
-              }`}
-            >
-              Join
-            </button>
+            <Button disabled={!name || !roomId} onClick={join}>Join</Button>
           </div>
 
           {!!msg && <p className="text-red-600 font-medium">{msg}</p>}
         </div>
       )}
 
-      {/* LOBBY */}
       {screen === "lobby" && (
         <div className="grid gap-6 max-w-md mx-auto">
           <p className="text-lg font-semibold">
-            <span className="font-bold">Room:</span> {roomId}{" "}
-            <span className="font-bold">Mode :</span> {room?.mode}
+            <span className="font-bold">Room:</span> {roomId} <span className="font-bold">Mode :</span> {room?.mode}
           </p>
+
+          {/* Stats surfaced here */}
+          <PlayersList players={players} hostId={room?.hostId} showProgress showStats />
 
           {room?.mode === "duel" ? (
             <>
-              <p className="text-gray-600">
-                Pick a secret five-letter word for your opponent to guess.
-              </p>
-              <div className="flex gap-4 items-center">
+              <p className="text-gray-600">Pick a secret five-letter word for your opponent to guess.</p>
+              <div className="flex gap-2">
                 <input
-                  className="border border-gray-300 rounded px-3 py-2 flex-grow focus:outline none focus:ring-2 focus:ring-red-500"
+                  className="border border-gray-300 rounded px-3 py-2 flex-grow focus:outline-none focus:ring-2 focus:ring-red-500"
                   placeholder="Secret word"
                   value={secret}
                   onChange={(e) => setSecret(e.target.value)}
                   maxLength={5}
                 />
-                <button
-                  onClick={submitSecret}
-                  className="bg-red-600 text-white rounded font-semibold hover:bg-red-700 px-4 py-2 "
-                >
-                  Set Secret
-                </button>
+                <Button onClick={submitSecret}>Set Secret</Button>
               </div>
-              <PlayersList players={players} hostId={room?.hostId} />
-              <p>
-                Game {room?.started ? "started!" : "waiting for both players..."}
-              </p>
+              <p className="text-sm">{room?.started ? "started!" : "waiting for both players..."}</p>
             </>
           ) : (
             <>
-              <p>
-                Battle Royale: The host sets a single secret word. Everyone else
-                tries to guess it. First correct guess wins. Each player has 6
-                guesses.
-              </p>
               {isHost ? (
-                <div className="flex gap-2 items-center flex-wrap">
+                <div className="flex gap-2 items-center">
                   <input
                     placeholder="Host secret word"
                     value={hostWord}
@@ -513,46 +460,31 @@ export default function App() {
                     maxLength={5}
                     className="border border-gray-300 rounded px-3 py-2"
                   />
-                  <button
-                    onClick={setWordAndStart}
-                    className="bg-red-600 text-white rounded font-semibold hover:bg-red-700 px-4 py-2"
-                  >
-                    Start Battle
-                  </button>
-                  <span className="opacity-70">
-                    {room?.battle?.hasSecret ? "Word set" : "No word yet"}
-                  </span>
+                  <Button onClick={setWordAndStart}>Start Battle</Button>
+                  <span className="opacity-70">{room?.battle?.hasSecret ? "Word set" : "No word yet"}</span>
                 </div>
               ) : (
                 <p>Waiting for host to start…</p>
               )}
-              <PlayersList players={players} hostId={room?.hostId} />
             </>
           )}
 
-          {!!msg && <p style={{ color: "crimson" }}>{msg}</p>}
+          {!!msg && <p className="text-red-600">{msg}</p>}
         </div>
       )}
 
       {/* DUEL GAME */}
-      {screen === "game" && room?.mode === "duel" && opponent && (
+      {screen === "game" && room?.mode === "duel" && (
         <div className="max-w-7xl mx-auto p-4 space-y-4">
-          <h2 className="text-xl font-bold text-center text-gray-700">
-            Fewest guesses wins
-          </h2>
+          <h2 className="text-xl font-bold text-center text-gray-700">Fewest guesses wins</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Left: YOU on THEIR word */}
             <section>
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-blue-200 grid place-items-center text-xl">
-                  🧑
-                </div>
+                <div className="w-10 h-10 rounded-full bg-blue-200 grid place-items-center text-xl">🧑</div>
                 <div>
                   <p className="font-semibold">{me?.name} (You)</p>
-                  <p className="text-xs text-muted-foreground">
-                    Guessing opponent’s word
-                  </p>
+                  <p className="text-xs text-muted-foreground">Guessing opponent’s word</p>
                 </div>
               </div>
               <Board
@@ -563,16 +495,13 @@ export default function App() {
               />
             </section>
 
-            {/* Right: OPPONENT on YOUR word */}
             <section>
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-pink-200 grid place-items-center text-xl">
-                  🧑‍💻
-                </div>
+                <div className="w-10 h-10 rounded-full bg-pink-200 grid place-items-center text-xl">🧑‍💻</div>
                 <div>
-                  <p className="font-semibold">{opponent?.name}</p>
+                  <p className="font-semibold">{opponent?.name || "—"}</p>
                   <p className="text-xs text-muted-foreground">
-                    Guessing your word
+                    {opponent?.disconnected ? "Opponent disconnected… waiting" : "Guessing your word"}
                   </p>
                 </div>
               </div>
@@ -581,13 +510,20 @@ export default function App() {
           </div>
 
           <Keyboard onKeyPress={handleDuelKey} letterStates={letterStates} />
+
+          {/* Duel start notice (closeable, non-blocking) */}
+          <NoticeModal
+            open={!!showDuelStart && !!room?.started}
+            onClose={() => setShowDuelStart(false)}
+            title="Round started"
+            text="Good luck! Make your guesses."
+          />
         </div>
       )}
 
       {/* BATTLE GAME */}
       {screen === "game" && room?.mode === "battle" && (
         isHost ? (
-          // Host Spectate
           <div className="max-w-7xl mx-auto p-4 space-y-6">
             <h2 className="text-xl font-bold text-slate-700">Host Spectate View</h2>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -597,7 +533,7 @@ export default function App() {
                   <div key={id}>
                     <div className="pb-2 flex items-center gap-3">
                       <div className="h-9 w-9 rounded-full bg-muted grid place-items-center text-sm font-semibold">
-                        {getInitials(p.name)}
+                        {((p.name || "").trim().split(/\s+/).slice(0, 2).map(x => x[0]?.toUpperCase()).join("")) || "?"}
                       </div>
                       <div>
                         <p className="text-base">{p.name}</p>
@@ -625,7 +561,6 @@ export default function App() {
             )}
           </div>
         ) : (
-          // Player view
           <div className="max-w-7xl mx-auto p-4 space-y-6">
             <h2 className="text-xl font-bold text-center text-slate-700">Battle Royale</h2>
             <Board
@@ -649,28 +584,34 @@ export default function App() {
           open={showVictory}
           onOpenChange={setShowVictory}
           mode={room.mode}
-          // Winner name
           winnerName={
             room.mode === "duel"
-              ? (room.winner === "draw"
-                  ? ""
-                  : room.winner === socket.id
-                  ? me?.name
-                  : opponent?.name)
+              ? (room.winner === "draw" ? "" :
+                 room.winner === socket.id ? me?.name : players.find(p => p.id === room.winner)?.name)
               : (room.battle?.winner
-                  ? (room.battle.winner === socket.id
-                      ? me?.name
-                      : players.find((p) => p.id === room.battle.winner)?.name)
-                  : "")
+                    ? (room.battle.winner === socket.id ? me?.name
+                      : players.find(p => p.id === room.battle.winner)?.name)
+                    : "")
           }
           leftName={me?.name}
-          rightName={opponent?.name}
+          rightName={players.find(p => p.id !== socket.id)?.name}
+          // tiles for secret reveals
           {...(() => {
             if (room.mode === "duel") {
-              const { leftSecret, rightSecret } = deriveDuelSecrets(room, me, opponent);
-              return { leftSecret, rightSecret, onPlayAgain: duelPlayAgain };
+              const opp = players.find(p => p.id !== socket.id);
+              const { leftSecret, rightSecret } = deriveDuelSecrets(room, me, opp);
+              return {
+                leftSecret,
+                rightSecret,
+                onPlayAgain: duelPlayAgain,
+                showPlayAgain: true, // duel only
+              };
             } else {
-              return { battleSecret: room.battle?.reveal, onPlayAgain: isHost ? setWordAndStart : undefined };
+              return {
+                battleSecret: room.battle?.reveal,
+                onPlayAgain: isHost ? undefined : undefined, // players don't get it
+                showPlayAgain: false, // per your request
+              };
             }
           })()}
         />
@@ -679,18 +620,10 @@ export default function App() {
   );
 }
 
-function PlayersList({ players, hostId, showProgress, className }) {
+function PlayersList({ players, hostId, showProgress, showStats, className }) {
   return (
-    <section
-      className={cn("space-y-3", className)}
-      aria-labelledby="players-heading"
-    >
-      <h2
-        id="players-heading"
-        className="text-base font-semibold tracking-tight"
-      >
-        Players
-      </h2>
+    <section className={cn("space-y-3", className)} aria-labelledby="players-heading">
+      <h2 id="players-heading" className="text-base font-semibold tracking-tight">Players</h2>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {players.map((p) => {
@@ -700,11 +633,11 @@ function PlayersList({ players, hostId, showProgress, className }) {
             <Card key={p.id} className="border bg-card/60 backdrop-blur">
               <CardHeader className="py-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">
+                  <CardTitle className="text-base flex items-center gap-2">
                     <span className="font-semibold">{p.name}</span>
                     {isHost && (
-                      <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">
-                        Host · Spectating
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground uppercase tracking-wider">
+                        Host
                       </span>
                     )}
                   </CardTitle>
@@ -714,11 +647,24 @@ function PlayersList({ players, hostId, showProgress, className }) {
                     </CardDescription>
                   )}
                 </div>
+                {showStats && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                      Wins: <b>{p.wins ?? 0}</b>
+                    </span>
+                    <span className="text-[11px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200">
+                      Streak: <b>{p.streak ?? 0}</b>
+                    </span>
+                    {p.disconnected && (
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+                        Reconnecting…
+                      </span>
+                    )}
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="pt-0">
-                <p className="text-xs text-muted-foreground">
-                  ID: {p.id.slice(0, 6)}…
-                </p>
+                <p className="text-xs text-muted-foreground">ID: {p.id.slice(0, 6)}…</p>
               </CardContent>
             </Card>
           );

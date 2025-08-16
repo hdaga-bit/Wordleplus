@@ -144,6 +144,38 @@ io.on("connection", (socket) => {
     cb?.({ ok: true });
   });
 
+  // RESUME: client sends oldId + roomId after reconnect; we move their state
+socket.on("resume", ({ roomId, oldId }, cb) => {
+  const room = rooms.get(roomId);
+  if (!room) return cb?.({ error: "Room not found" });
+  const oldPlayer = room.players[oldId];
+  if (!oldPlayer) return cb?.({ error: "Old session not found" });
+
+  // adopt old state under the new socket.id
+  room.players[socket.id] = { ...oldPlayer, disconnected: false };
+  delete room.players[oldId];
+
+  // if they were host, transfer hostId
+  if (room.hostId === oldId) room.hostId = socket.id;
+
+  socket.join(roomId);
+  io.to(roomId).emit("roomState", sanitizeRoom(room));
+  cb?.({ ok: true });
+});
+
+// On disconnect, mark but do NOT delete immediately
+socket.on("disconnect", () => {
+  for (const [id, room] of rooms) {
+    if (room.players[socket.id]) {
+      room.players[socket.id].disconnected = true;
+      io.to(id).emit("roomState", sanitizeRoom(room));
+      // only delete the room if *no* players remain at all
+      if (Object.keys(room.players).length === 0) rooms.delete(id);
+    }
+  }
+});
+  
+
   socket.on("createRoom", ({ name, mode = "duel" }, cb) => {
     const id = Math.random().toString(36).slice(2, 8).toUpperCase();
     const room = {
@@ -156,13 +188,20 @@ io.on("connection", (socket) => {
       duelReveal: undefined,
       battle: { secret: null, started: false, winner: null, reveal: null },
     };
-    room.players[socket.id] = {
-      name,
-      ready: false,
-      secret: null,
-      guesses: [],
-      done: false,
-    };
+
+    
+
+  // when creating the room:
+room.players[socket.id] = {
+  name,
+  ready: false,
+  secret: null,
+  guesses: [],
+  done: false,
+  wins: 0,
+  streak: 0,
+  disconnected: false, // NEW
+};
     rooms.set(id, room);
     socket.join(id);
     cb?.({ roomId: id });
@@ -174,13 +213,17 @@ io.on("connection", (socket) => {
     if (!room) return cb?.({ error: "Room not found" });
     if (room.mode === "duel" && Object.keys(room.players).length >= 2)
       return cb?.({ error: "Room is full" });
-    room.players[socket.id] = {
-      name,
-      ready: false,
-      secret: null,
-      guesses: [],
-      done: false,
-    };
+  // when creating the room:
+room.players[socket.id] = {
+  name,
+  ready: false,
+  secret: null,
+  guesses: [],
+  done: false,
+  wins: 0,
+  streak: 0,
+  disconnected: false, // NEW
+};
     socket.join(roomId);
     cb?.({ ok: true });
     io.to(roomId).emit("roomState", sanitizeRoom(room));
@@ -378,24 +421,41 @@ function computeDuelWinner(room) {
     else if (!aSolved && bSolved) winner = b;
     else if ((A.done && B.done) || (aSolved && bSolved)) {
       const aSteps =
-        A.guesses.findIndex((g) => g.guess === room.players[b].secret) + 1 ||
-        999;
+        A.guesses.findIndex((g) => g.guess === room.players[b].secret) + 1 || 999;
       const bSteps =
-        B.guesses.findIndex((g) => g.guess === room.players[a].secret) + 1 ||
-        999;
+        B.guesses.findIndex((g) => g.guess === room.players[a].secret) + 1 || 999;
       if (aSteps < bSteps) winner = a;
       else if (bSteps < aSteps) winner = b;
       else winner = "draw";
     }
   }
-  if (winner) room.winner = winner;
+
+  if (winner) {
+    room.winner = winner;
+    const ids = Object.keys(room.players);
+    if (ids.length === 2) {
+      const [a, b] = ids;
+      const A = room.players[a], B = room.players[b];
+      if (winner !== "draw") {
+        const loser = winner === a ? b : a;
+        room.players[winner].wins = (room.players[winner].wins || 0) + 1;
+        room.players[winner].streak = (room.players[winner].streak || 0) + 1;
+        room.players[loser].streak = 0;
+      } else {
+        // draw: reset both streaks? choose your rule; here we reset both
+        A.streak = 0; B.streak = 0;
+      }
+      room.duelReveal = { [a]: A.secret, [b]: B.secret };
+      room.started = false;
+    }
+  }
 }
 
 function sanitizeRoom(room) {
   const players = Object.fromEntries(
     Object.entries(room.players).map(([id, p]) => {
-      const { name, ready, guesses, done } = p;
-      return [id, { name, ready, guesses, done }];
+      const { name, ready, guesses, done, wins = 0, streak = 0, disconnected = false } = p;
+      return [id, { name, ready, guesses, done, wins, streak, disconnected }];
     })
   );
   return {
@@ -409,7 +469,7 @@ function sanitizeRoom(room) {
     battle: {
       started: room.battle.started,
       winner: room.battle.winner,
-      reveal: room.battle.reveal, // use this for Battle Royale reveal
+      reveal: room.battle.reveal,
       hasSecret: !!room.battle.secret,
     },
   };
