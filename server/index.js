@@ -246,40 +246,49 @@ io.on("connection", (socket) => {
     }
 
     // BATTLE logic
-    if (room.mode === "battle") {
-      if (socket.id === room.hostId) {
-        return cb?.({ error: "Host is spectating this round" });
-      }
-      if (!room.battle.started) return cb?.({ error: "Battle not started" });
+   // BATTLE logic
+if (room.mode === "battle") {
+  if (socket.id === room.hostId) {
+    return cb?.({ error: "Host is spectating this round" });
+  }
+  if (!room.battle.started) return cb?.({ error: "Battle not started" });
 
-      const player = room.players[socket.id];
-      if (!player) return cb?.({ error: "Not in room" });
-      if (player.done) return cb?.({ error: "No guesses left" });
+  const player = room.players[socket.id];
+  if (!player) return cb?.({ error: "Not in room" });
+  if (player.done) return cb?.({ error: "No guesses left" });
 
-      const g = (guess || "").toUpperCase();
-      const pattern = scoreGuess(room.battle.secret, g);
-      player.guesses.push({ guess: g, pattern });
+  const g = (guess || "").toUpperCase();
+  const pattern = scoreGuess(room.battle.secret, g);
+  player.guesses.push({ guess: g, pattern });
 
-      if (g === room.battle.secret) {
-        room.battle.winner = socket.id;
-        room.battle.started = false;
-        room.battle.reveal = room.battle.secret;
-        // mark others done
-        Object.keys(room.players).forEach((pid) => {
-          if (pid !== socket.id) room.players[pid].done = true;
-        });
-      } else if (player.guesses.length >= 6) {
-        player.done = true;
-        // if all done and no winner, end and reveal
-        if (Object.values(room.players).every((p) => p.done)) {
-          room.battle.started = false;
-          room.battle.reveal = room.battle.secret;
-        }
-      }
+  if (g === room.battle.secret) {
+    // --- WINNER PATH ---
+    room.battle.winner = socket.id;
+    room.battle.started = false;
+    room.battle.reveal  = room.battle.secret; // show the answer
+    // mark others done so UI shows 6/6 (or completed) everywhere
+    Object.keys(room.players).forEach((pid) => {
+      if (pid !== socket.id) room.players[pid].done = true;
+    });
+  } else if (player.guesses.length >= 6) {
+    player.done = true;
 
-      io.to(roomId).emit("roomState", sanitizeRoom(room));
-      return cb?.({ ok: true, pattern });
+    // --- NO-WINNER PATH: if everyone is done, end & reveal just like winner state ---
+    const allDone = Object.values(room.players)
+      .filter((p, pid) => pid !== room.hostId) // exclude host if you keep them as spectating player object
+      .every((p) => p.done);
+
+    if (allDone) {
+      room.battle.started = false;
+      room.battle.winner  = null;                 // no winner
+      room.battle.reveal  = room.battle.secret;   // reveal so host sees the answer
+      // everyone is already done here; nothing else needed
     }
+  }
+
+  io.to(roomId).emit("roomState", sanitizeRoom(room));
+  return cb?.({ ok: true, pattern });
+}
   });
 
   // ----- BATTLE HOST CONTROLS -----
