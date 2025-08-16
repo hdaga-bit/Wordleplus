@@ -1,95 +1,54 @@
-// src/components/Board.jsx
-import React, { useEffect, useState } from "react";
+// Board.jsx
+import React from "react";
 
 export default function Board({
   guesses = [],
   activeGuess = "",
   tile = 48,
   gap = 6,
-  // Active-row invalid (length < 5 or invalid word)
-  errorShakeKey,
-  errorActiveRow = false,
-  // Valid but wrong guess just submitted (Battle)
-  missShakeKey,
+  errorShakeKey = 0,     // NEW
+  errorActiveRow = false // NEW: should we mark the active row as error?
 }) {
-  // Build rows: past guesses + 1 active guess row + empty rows to 6
   const rows = [...guesses];
-  const activeRow = rows.length; // <- THIS defines activeRow
+  const activeRowIdx = rows.length;
+
   if (rows.length < 6) {
-    rows.push({
-      guess: (activeGuess || "").padEnd(5, " "),
-      pattern: Array(5).fill("empty"),
-    });
+    rows.push({ guess: activeGuess.padEnd(5, " "), pattern: Array(5).fill("empty") });
   }
   while (rows.length < 6) rows.push({ guess: "", pattern: [] });
-
-  // Track which row should "miss shake" (last submitted real row)
-  const [missRowIndex, setMissRowIndex] = useState(null);
-
-  useEffect(() => {
-    if (!missShakeKey) return;
-    if (guesses.length > 0) {
-      const lastIdx = Math.min(guesses.length - 1, 5);
-      setMissRowIndex(lastIdx);
-      const t = setTimeout(() => setMissRowIndex(null), 600);
-      return () => clearTimeout(t);
-    }
-  }, [missShakeKey, guesses.length]);
 
   return (
     <div style={{ display: "grid", gap }}>
       {rows.map((row, rowIdx) => {
-        const isActive = rowIdx === activeRow;
-        const isMiss = missRowIndex === rowIdx;
-
-        // Use a changing key on the *row* to reliably retrigger CSS animations
-        const rowKey = `${rowIdx}-${isActive ? errorShakeKey ?? 0 : 0}-${isMiss ? missShakeKey ?? 0 : 0}`;
-
+        const isActive = rowIdx === activeRowIdx;
+        // To re-trigger CSS animation, change the key when errorShakeKey increments
+        const rowKey = isActive ? `active-${rowIdx}-${errorShakeKey}` : `row-${rowIdx}`;
         return (
           <div
             key={rowKey}
-            className={isMiss ? "animate-wiggle-red" : ""}
+            className={isActive && errorActiveRow ? "shake-hard" : ""}
             style={{
               display: "grid",
               gridTemplateColumns: `repeat(5, ${tile}px)`,
-              gap,
+              gap
             }}
           >
             {Array.from({ length: 5 }).map((_, i) => {
               const ch = row.guess?.[i] || "";
               const state = row.pattern?.[i] || "empty";
 
-              let bg = "#fff";
-              let color = "#000";
-              let border = "1px solid #ddd";
+              let bg = "#fff", color = "#000", border = "1px solid #ccc";
+              if (state === "green") { bg = "#6aaa64"; color = "#fff"; border = "1px solid #6aaa64"; }
+              else if (state === "yellow") { bg = "#c9b458"; color = "#fff"; border = "1px solid #c9b458"; }
+              else if (state === "gray") { bg = "#787c7e"; color = "#fff"; border = "1px solid #787c7e"; }
+              else if (isActive && ch.trim() !== "") { border = "1px solid #999"; }
 
-              if (state === "green") {
-                bg = "#6aaa64";
-                color = "#fff";
-                border = "1px solid #6aaa64";
-              } else if (state === "yellow") {
-                bg = "#c9b458";
-                color = "#fff";
-                border = "1px solid #c9b458";
-              } else if (state === "gray") {
-                bg = "#787c7e";
-                color = "#fff";
-                border = "1px solid #787c7e";
-              } else if (isActive && ch.trim() !== "") {
-                // active typing cells
-                bg = "#fff";
-                color = "#000";
-                border = "1px solid #999";
-              }
-
-              const cellClass =
-                (isActive && errorActiveRow ? "tile-error-red animate-wiggle-red " : "") +
-                (isMiss ? "tile-error-red " : "");
+              const tileClass = isActive && errorActiveRow ? "tile-error" : "";
 
               return (
                 <div
                   key={i}
-                  className={cellClass}
+                  className={tileClass}
                   style={{
                     height: tile,
                     display: "grid",
@@ -99,7 +58,7 @@ export default function Board({
                     fontWeight: "bold",
                     textTransform: "uppercase",
                     border,
-                    borderRadius: 4,
+                    borderRadius: 6
                   }}
                 >
                   {ch.trim()}
