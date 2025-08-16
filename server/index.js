@@ -245,8 +245,8 @@ io.on("connection", (socket) => {
       return cb?.({ ok: true, pattern });
     }
 
-    // BATTLE logic
-   // BATTLE logic
+ 
+// BATTLE logic
 if (room.mode === "battle") {
   if (socket.id === room.hostId) {
     return cb?.({ error: "Host is spectating this round" });
@@ -265,24 +265,25 @@ if (room.mode === "battle") {
     // --- WINNER PATH ---
     room.battle.winner = socket.id;
     room.battle.started = false;
-    room.battle.reveal  = room.battle.secret; // show the answer
-    // mark others done so UI shows 6/6 (or completed) everywhere
+    room.battle.reveal  = room.battle.secret;
+
+    // mark others done for clean UI
     Object.keys(room.players).forEach((pid) => {
       if (pid !== socket.id) room.players[pid].done = true;
     });
   } else if (player.guesses.length >= 6) {
+    // player just ran out of guesses
     player.done = true;
 
-    // --- NO-WINNER PATH: if everyone is done, end & reveal just like winner state ---
-    const allDone = Object.values(room.players)
-      .filter((p, pid) => pid !== room.hostId) // exclude host if you keep them as spectating player object
-      .every((p) => p.done);
+    // --- NO-WINNER PATH: if ALL non-host players are done, end & reveal ---
+    const nonHostIds = Object.keys(room.players).filter(id => id !== room.hostId);
+    const allDone = nonHostIds.length > 0 && nonHostIds.every(id => room.players[id].done);
 
     if (allDone) {
       room.battle.started = false;
-      room.battle.winner  = null;                 // no winner
-      room.battle.reveal  = room.battle.secret;   // reveal so host sees the answer
-      // everyone is already done here; nothing else needed
+      room.battle.winner  = null;                // no winner
+      room.battle.reveal  = room.battle.secret;  // reveal the answer so host gets Play Again UI
+      // (players already marked done)
     }
   }
 
