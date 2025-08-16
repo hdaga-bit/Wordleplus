@@ -16,6 +16,32 @@ import {
   CardContent,
 } from "@/components/ui/card";
 
+// --- localStorage keys for session persistence ----
+const LS_LAST_ROOM = "wp.lastRoomId";
+const LS_LAST_NAME = "wp.lastName";
+const LS_LAST_MODE = "wp.lastMode";
+const LS_LAST_SOCKET = "wp.lastSocketId";
+
+// Lightweight connection banner
+function ConnectionBar({ connected, reconnecting, canRejoin, onRejoin, savedRoomId }) {
+  if (!connected) {
+    return (
+      <div className="w-full bg-yellow-100 text-yellow-900 text-sm py-2 px-3 rounded mb-3">
+        Connection lost — trying to reconnect…
+      </div>
+    );
+  }
+  if (canRejoin) {
+    return (
+      <div className="w-full bg-blue-50 text-blue-900 text-sm py-2 px-3 rounded mb-3 flex items-center justify-between">
+        <span>You were in room <b>{savedRoomId}</b>. Rejoin?</span>
+        <Button size="sm" onClick={onRejoin}>Rejoin</Button>
+      </div>
+    );
+  }
+  return null;
+}
+
 function useRoomState() {
   const [room, setRoom] = useState(null);
   useEffect(() => {
@@ -28,9 +54,9 @@ function useRoomState() {
 
 export default function App() {
   const [screen, setScreen] = useState("home"); // home | lobby | game
-  const [name, setName] = useState("");
-  const [roomId, setRoomId] = useState("");
-  const [mode, setMode] = useState("duel"); // 'duel' | 'battle'
+  const [name, setName] = useState(localStorage.getItem(LS_LAST_NAME) || "");
+  const [roomId, setRoomId] = useState(localStorage.getItem(LS_LAST_ROOM) || "");
+  const [mode, setMode] = useState(localStorage.getItem(LS_LAST_MODE) || "duel"); // duel | battle
 
   // Duel
   const [secret, setSecret] = useState("");
@@ -45,11 +71,19 @@ export default function App() {
   const [currentGuess, setCurrentGuess] = useState("");
   const [showVictory, setShowVictory] = useState(false);
 
+  // Connection state (for banner + rejoin)
+  const [conn, setConn] = useState({
+    connected: socket.connected,
+    reconnecting: false,
+    err: null,
+  });
+  const [rejoinOffered, setRejoinOffered] = useState(false);
+
+  // --- Helpers ----------------------------------------------------
   function allGreenGuessWord(guesses = []) {
     const g = guesses.find((g) => g.pattern?.every((p) => p === "green"));
     return g?.guess;
   }
-
   function deriveDuelSecrets(room, me, opponent) {
     const leftSecret =
       allGreenGuessWord(opponent?.guesses) ||
@@ -58,7 +92,92 @@ export default function App() {
       allGreenGuessWord(me?.guesses) || room?.duelReveal?.[opponent?.id];
     return { leftSecret, rightSecret };
   }
+  function getInitials(str = "") {
+    const parts = str.trim().split(/\s+/).slice(0, 2);
+    return parts.map((p) => p[0]?.toUpperCase() || "").join("");
+  }
+  function persistSession({ name: n, roomId: r, mode: m }) {
+    if (n) localStorage.setItem(LS_LAST_NAME, n);
+    if (r) localStorage.setItem(LS_LAST_ROOM, r);
+    if (m) localStorage.setItem(LS_LAST_MODE, m);
+  }
 
+  const me = useMemo(() => room?.players && room.players[socket.id], [room]);
+  const players = useMemo(() => {
+    const p = room?.players
+      ? Object.entries(room.players).map(([id, p]) => ({ id, ...p }))
+      : [];
+    return p;
+  }, [room]);
+  const opponent = useMemo(() => {
+    const list = room?.players ? Object.entries(room.players) : [];
+    const other = list.find(([id]) => id !== socket.id);
+    return other ? { id: other[0], ...other[1] } : null;
+  }, [room]);
+
+  const isHost = room?.hostId === socket.id;
+  const canGuessDuel = room?.mode === "duel" && room?.started;
+  const canGuessBattle =
+    room?.mode === "battle" && room?.battle?.started && !isHost;
+
+  // --- Socket lifecycle: connection + reconnection UX -------------
+  useEffect(() => {
+    const onConnect = () => {
+      localStorage.setItem(LS_LAST_SOCKET, socket.id);
+      setConn({ connected: true, reconnecting: false, err: null });
+      // If we just reconnected and there's a saved room, offer to rejoin
+      const savedRoom = localStorage.getItem(LS_LAST_ROOM);
+      const savedName = localStorage.getItem(LS_LAST_NAME);
+      if (savedRoom && savedName) {
+        // only offer if not already in a room screen
+        if (!room?.id) setRejoinOffered(true);
+      }
+    };
+    const onDisconnect = (reason) => {
+      setConn((s) => ({ ...s, connected: false }));
+    };
+    const onReconAttempt = () =>
+      setConn((s) => ({ ...s, reconnecting: true, connected: false }));
+    const onReconnected = () =>
+      setConn({ connected: true, reconnecting: false, err: null });
+    const onManagerError = (err) =>
+      setConn((s) => ({ ...s, err: err?.message || String(err) }));
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.io.on("reconnect_attempt", onReconAttempt);
+    socket.io.on("reconnect", onReconnected);
+    socket.io.on("error", onManagerError);
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.io.off("reconnect_attempt", onReconAttempt);
+      socket.io.off("reconnect", onReconnected);
+      socket.io.off("error", onManagerError);
+    };
+  }, [room?.id]);
+
+  const savedRoomId = typeof window !== "undefined" ? localStorage.getItem(LS_LAST_ROOM) : "";
+  const savedName = typeof window !== "undefined" ? localStorage.getItem(LS_LAST_NAME) : "";
+  const canRejoin = conn.connected && !room?.id && savedRoomId && savedName && rejoinOffered;
+
+  const doRejoin = () => {
+    if (!savedRoomId || !savedName) return;
+    setName(savedName);
+    setRoomId(savedRoomId);
+    socket.emit("joinRoom", { name: savedName, roomId: savedRoomId }, (resp) => {
+      if (resp?.error) {
+        setMsg(resp.error);
+      } else {
+        setScreen("lobby");
+        persistSession({ name: savedName, roomId: savedRoomId, mode });
+        setRejoinOffered(false);
+      }
+    });
+  };
+
+  // --- Victory modal visibility -----------------------------------
   useEffect(() => {
     if (!room) return;
     if (room.mode === "duel") {
@@ -70,60 +189,23 @@ export default function App() {
         setShowVictory(true);
       }
     }
-  }, [
-    room?.mode,
-    room?.winner,
-    room?.started,
-    room?.battle?.started,
-    room?.battle?.winner,
-    room?.battle?.reveal,
-  ]);
+  }, [room?.mode, room?.winner, room?.started, room?.battle?.started, room?.battle?.winner, room?.battle?.reveal]);
 
+  // Clear transient message after 2s
   useEffect(() => {
     if (!msg) return;
     const t = setTimeout(() => setMsg(""), 2000);
     return () => clearTimeout(t);
   }, [msg]);
 
-  const me = useMemo(() => room?.players && room.players[socket.id], [room]);
-  const players = useMemo(() => {
-    const p = room?.players
-      ? Object.entries(room.players).map(([id, p]) => ({ id, ...p }))
-      : [];
-    return p;
-  }, [room]);
-
-  const opponent = useMemo(() => {
-    const list = room?.players ? Object.entries(room.players) : [];
-    const other = list.find(([id]) => id !== socket.id);
-    return other ? { id: other[0], ...other[1] } : null;
-  }, [room]);
-
-  const isHost = room?.hostId === socket.id;
-
-  const canGuessDuel = room?.mode === "duel" && room?.started;
-  const canGuessBattle = room?.mode === "battle" && room?.battle?.started && !isHost;
-
-  function duelPlayAgain() {
-    socket.emit("duelPlayAgain", { roomId }, (resp) => {
-      if (resp?.error) return setMsg(resp.error);
-      setCurrentGuess("");
-      setScreen("lobby");
-    });
-  }
-
-  function getInitials(name = "") {
-    const parts = name.trim().split(/\s+/).slice(0, 2);
-    return parts.map((p) => p[0]?.toUpperCase() || "").join("");
-  }
-
-  // --- Create / Join ---
+  // --- Create / Join ------------------------------------------------
   function create() {
     socket.emit("createRoom", { name, mode }, (resp) => {
       if (resp?.roomId) {
         setRoomId(resp.roomId);
         setCurrentGuess("");
         setScreen("lobby");
+        persistSession({ name, roomId: resp.roomId, mode });
       }
     });
   }
@@ -133,54 +215,50 @@ export default function App() {
       else {
         setCurrentGuess("");
         setScreen("lobby");
+        persistSession({ name, roomId, mode });
       }
     });
   }
 
-  // --- Duel ---
+  // --- Duel ---------------------------------------------------------
   async function submitSecret() {
     const v = await validateWord(secret);
     if (!v.valid) return setMsg("Secret must be a valid 5-letter word");
     socket.emit("setSecret", { roomId, secret });
   }
-
-  // ---------- SHARED GUESS FLOW (Duel & Battle) ----------
-  async function sendGuessShared() {
-    // Gate by mode+state here to avoid accidental emits
-    const allowed =
-      (room?.mode === "duel" && room?.started) ||
-      (room?.mode === "battle" && room?.battle?.started && !isHost);
-    if (!allowed) return;
-
-    // Length check
+  async function submitDuelGuess() {
+    if (!canGuessDuel) return;
     if (currentGuess.length !== 5) {
       setShowActiveError(true);
       setShakeKey((k) => k + 1);
       return;
     }
-
-    // Dictionary check
     const v = await validateWord(currentGuess);
     if (!v.valid) {
       setShowActiveError(true);
       setShakeKey((k) => k + 1);
       return;
     }
-
-    // Emit to server
     socket.emit("makeGuess", { roomId, guess: currentGuess }, (resp) => {
       if (resp?.error) {
         setShowActiveError(true);
         setShakeKey((k) => k + 1);
         return;
       }
-      // success
       setCurrentGuess("");
       setShowActiveError(false);
     });
   }
+  function duelPlayAgain() {
+    socket.emit("duelPlayAgain", { roomId }, (resp) => {
+      if (resp?.error) return setMsg(resp.error);
+      setCurrentGuess("");
+      setShowVictory(false);
+      setScreen("lobby");
+    });
+  }
 
-  // --- Battle host controls ---
+  // --- Battle -------------------------------------------------------
   async function setWordAndStart() {
     const v = await validateWord(hostWord);
     if (!v.valid) return setMsg("Host word must be valid");
@@ -192,35 +270,58 @@ export default function App() {
       });
     });
   }
+  async function battleGuess(g) {
+    if (!canGuessBattle) return;
+    if (g.length !== 5) {
+      setShowActiveError(true);
+      setShakeKey((k) => k + 1);
+      return;
+    }
+    const v = await validateWord(g);
+    if (!v.valid) {
+      setShowActiveError(true);
+      setShakeKey((k) => k + 1);
+      return;
+    }
+    socket.emit("makeGuess", { roomId, guess: g }, (resp) => {
+      if (resp?.error) {
+        setShowActiveError(true);
+        setShakeKey((k) => k + 1);
+      }
+    });
+  }
   function playAgain() {
     socket.emit("playAgain", { roomId, keepWord: false }, (r) => {
       if (r?.error) setMsg(r.error);
+      else {
+        setShowVictory(false);
+        setHostWord("");
+      }
     });
   }
 
-  // --- Keyboard handlers (route to shared flow) ---
+  // --- Keyboards ----------------------------------------------------
   const handleDuelKey = (key) => {
-    if (!(room?.mode === "duel" && room?.started)) return;
-    if (key === "ENTER") {
-      sendGuessShared();
-    } else if (key === "BACKSPACE") {
-      setCurrentGuess((p) => p.slice(0, -1));
-    } else if (currentGuess.length < 5 && /^[A-Z]$/.test(key)) {
-      setCurrentGuess((p) => p + key);
-    }
+    if (!canGuessDuel) return;
+    if (key === "ENTER") submitDuelGuess();
+    else if (key === "BACKSPACE") setCurrentGuess((p) => p.slice(0, -1));
+    else if (currentGuess.length < 5 && /^[A-Z]$/.test(key)) setCurrentGuess((p) => p + key);
   };
   const handleBattleKey = (key) => {
-    if (!(room?.mode === "battle" && room?.battle?.started && !isHost)) return;
+    if (!canGuessBattle) return;
     if (key === "ENTER") {
-      sendGuessShared();
-    } else if (key === "BACKSPACE") {
-      setCurrentGuess((p) => p.slice(0, -1));
-    } else if (currentGuess.length < 5 && /^[A-Z]$/.test(key)) {
-      setCurrentGuess((p) => p + key);
-    }
+      if (currentGuess.length === 5) {
+        battleGuess(currentGuess);
+        setCurrentGuess("");
+        setShowActiveError(false);
+      } else {
+        setShowActiveError(true);
+        setShakeKey((k) => k + 1);
+      }
+    } else if (key === "BACKSPACE") setCurrentGuess((p) => p.slice(0, -1));
+    else if (currentGuess.length < 5 && /^[A-Z]$/.test(key)) setCurrentGuess((p) => p + key);
   };
 
-  // Physical keyboard: route by mode
   useEffect(() => {
     const onKeyDown = (e) => {
       const key =
@@ -237,9 +338,9 @@ export default function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [room?.mode, room?.started, room?.battle?.started, isHost, currentGuess]);
+  }, [room?.mode, canGuessDuel, canGuessBattle, currentGuess]);
 
-  // Screen transitions
+  // Screen transitions from server pushes
   useEffect(() => {
     if (room?.mode === "duel" && room?.started) {
       setScreen("game");
@@ -283,6 +384,15 @@ export default function App() {
 
   return (
     <div className="max-w-7xl mx-auto p-4 font-sans">
+      {/* Connection / Rejoin UI */}
+      <ConnectionBar
+        connected={conn.connected}
+        reconnecting={conn.reconnecting}
+        canRejoin={canRejoin}
+        onRejoin={doRejoin}
+        savedRoomId={savedRoomId}
+      />
+
       <h1 className="text-3xl font-bold text-red-600 mb-6">Friendle Clone</h1>
 
       {/* HOME */}
@@ -322,7 +432,9 @@ export default function App() {
             disabled={!name}
             onClick={create}
             className={`w-full py-2 rounded text-white font-semibold ${
-              name ? "bg-red-600 hover:bg-red-700" : "bg-gray-400 cursor-not-allowed"
+              name
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-gray-400 cursor-not-allowed"
             }`}
           >
             Create Room
@@ -339,7 +451,9 @@ export default function App() {
               disabled={!name || !roomId}
               onClick={join}
               className={`px-4 py-2 rounded text-white font-semibold ${
-                name && roomId ? "bg-red-600 hover:bg-red-700" : "bg-gray-400 cursor-not-allowed"
+                name && roomId
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-gray-400 cursor-not-allowed"
               }`}
             >
               Join
@@ -355,8 +469,7 @@ export default function App() {
         <div className="grid gap-6 max-w-md mx-auto">
           <p className="text-lg font-semibold">
             <span className="font-bold">Room:</span> {roomId}{" "}
-            <span className="font-bold">Mode :</span>
-            {room?.mode}
+            <span className="font-bold">Mode :</span> {room?.mode}
           </p>
 
           {room?.mode === "duel" ? (
@@ -380,13 +493,16 @@ export default function App() {
                 </button>
               </div>
               <PlayersList players={players} hostId={room?.hostId} />
-              <p>Game {room?.started ? "started!" : "waiting for both players..."}</p>
+              <p>
+                Game {room?.started ? "started!" : "waiting for both players..."}
+              </p>
             </>
           ) : (
             <>
               <p>
-                Battle Royale: The host sets a single secret word. Everyone else tries to
-                guess it. First correct guess wins. Each player has 6 guesses.
+                Battle Royale: The host sets a single secret word. Everyone else
+                tries to guess it. First correct guess wins. Each player has 6
+                guesses.
               </p>
               {isHost ? (
                 <div className="flex gap-2 items-center flex-wrap">
@@ -421,16 +537,22 @@ export default function App() {
       {/* DUEL GAME */}
       {screen === "game" && room?.mode === "duel" && opponent && (
         <div className="max-w-7xl mx-auto p-4 space-y-4">
-          <h2 className="text-xl font-bold text-center text-gray-700">Fewest guesses wins</h2>
+          <h2 className="text-xl font-bold text-center text-gray-700">
+            Fewest guesses wins
+          </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Left: YOU */}
+            {/* Left: YOU on THEIR word */}
             <section>
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-blue-200 grid place-items-center text-xl">🧑</div>
+                <div className="w-10 h-10 rounded-full bg-blue-200 grid place-items-center text-xl">
+                  🧑
+                </div>
                 <div>
                   <p className="font-semibold">{me?.name} (You)</p>
-                  <p className="text-xs text-muted-foreground">Guessing opponent’s word</p>
+                  <p className="text-xs text-muted-foreground">
+                    Guessing opponent’s word
+                  </p>
                 </div>
               </div>
               <Board
@@ -441,13 +563,17 @@ export default function App() {
               />
             </section>
 
-            {/* Right: OPPONENT */}
+            {/* Right: OPPONENT on YOUR word */}
             <section>
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-pink-200 grid place-items-center text-xl">🧑‍💻</div>
+                <div className="w-10 h-10 rounded-full bg-pink-200 grid place-items-center text-xl">
+                  🧑‍💻
+                </div>
                 <div>
                   <p className="font-semibold">{opponent?.name}</p>
-                  <p className="text-xs text-muted-foreground">Guessing your word</p>
+                  <p className="text-xs text-muted-foreground">
+                    Guessing your word
+                  </p>
                 </div>
               </div>
               <Board guesses={opponent?.guesses || []} activeGuess="" />
@@ -523,27 +649,28 @@ export default function App() {
           open={showVictory}
           onOpenChange={setShowVictory}
           mode={room.mode}
+          // Winner name
           winnerName={
             room.mode === "duel"
-              ? room.winner === "draw"
-                ? ""
-                : room.winner === socket.id
-                ? me?.name
-                : opponent?.name
-              : room.battle?.winner
-              ? room.battle.winner === socket.id
-                ? me?.name
-                : players.find((p) => p.id === room.battle.winner)?.name
-              : ""
+              ? (room.winner === "draw"
+                  ? ""
+                  : room.winner === socket.id
+                  ? me?.name
+                  : opponent?.name)
+              : (room.battle?.winner
+                  ? (room.battle.winner === socket.id
+                      ? me?.name
+                      : players.find((p) => p.id === room.battle.winner)?.name)
+                  : "")
           }
           leftName={me?.name}
           rightName={opponent?.name}
           {...(() => {
             if (room.mode === "duel") {
               const { leftSecret, rightSecret } = deriveDuelSecrets(room, me, opponent);
-              return { leftSecret, rightSecret };
+              return { leftSecret, rightSecret, onPlayAgain: duelPlayAgain };
             } else {
-              return { battleSecret: room.battle?.reveal };
+              return { battleSecret: room.battle?.reveal, onPlayAgain: isHost ? setWordAndStart : undefined };
             }
           })()}
         />
@@ -554,8 +681,14 @@ export default function App() {
 
 function PlayersList({ players, hostId, showProgress, className }) {
   return (
-    <section className={cn("space-y-3", className)} aria-labelledby="players-heading">
-      <h2 id="players-heading" className="text-base font-semibold tracking-tight">
+    <section
+      className={cn("space-y-3", className)}
+      aria-labelledby="players-heading"
+    >
+      <h2
+        id="players-heading"
+        className="text-base font-semibold tracking-tight"
+      >
         Players
       </h2>
 
@@ -583,7 +716,9 @@ function PlayersList({ players, hostId, showProgress, className }) {
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <p className="text-xs text-muted-foreground">ID: {p.id.slice(0, 6)}…</p>
+                <p className="text-xs text-muted-foreground">
+                  ID: {p.id.slice(0, 6)}…
+                </p>
               </CardContent>
             </Card>
           );
