@@ -39,7 +39,8 @@ export default function App() {
   const [hostWord, setHostWord] = useState("");
 
   const [msg, setMsg] = useState("");
-  const [shakeKey, setShakeKey] = useState(0);     // NEW
+  const [shakeKey, setShakeKey] = useState(0);       // active-row errors (length/invalid)
+  const [missShakeKey, setMissShakeKey] = useState(0); // NEW: last-submitted miss shake
   const [showActiveError, setShowActiveError] = useState(false); // NEW
   const [room] = useRoomState();
   const [currentGuess, setCurrentGuess] = useState("");
@@ -519,6 +520,7 @@ export default function App() {
             gap={8}
             errorShakeKey={shakeKey}
             errorActiveRow={showActiveError}
+            missShakeKey={missShakeKey}
           />
           {canGuessBattle && (
             <Keyboard onKeyPress={handleBattleKey} letterStates={letterStates} />
