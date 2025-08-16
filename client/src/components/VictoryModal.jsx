@@ -4,16 +4,18 @@ import { Button } from "@/components/ui/button";
 function Tiles({ word = "" }) {
   const letters = (word || "").toUpperCase().padEnd(5).slice(0, 5).split("");
   return (
-    <div className="grid grid-cols-5 gap-1 mt-1">
-      {letters.map((ch, i) => (
-        <div
-          key={i}
-          className="h-10 w-10 grid place-items-center rounded font-bold text-white"
-          style={{ background: "#6aaa64", border: "1px solid #6aaa64" }}
-        >
-          {ch.trim()}
-        </div>
-      ))}
+    <div className="flex items-center justify-center">
+      <div className="flex gap-[4px]">
+        {letters.map((ch, i) => (
+          <div
+            key={i}
+            className="h-10 w-10 grid place-items-center rounded-md font-bold text-white"
+            style={{ background: "#6aaa64", border: "1px solid #6aaa64" }}
+          >
+            {ch.trim()}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
