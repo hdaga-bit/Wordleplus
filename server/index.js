@@ -115,6 +115,26 @@ function maybeStartDuel(roomId) {
   }
 }
 
+function updateStatsOnWin(room, winnerId) {
+  if (!winnerId || winnerId === "draw") return;
+  const p = room.players[winnerId];
+  if (!p) return;
+  p.wins = (p.wins || 0) + 1;
+  p.streak = (p.streak || 0) + 1;
+
+  // reset others' streaks
+  Object.keys(room.players).forEach((id) => {
+    if (id !== winnerId) room.players[id].streak = 0;
+  });
+}
+
+// Reset round-scoped flags (not stats)
+function resetRoundFlags(room) {
+  room.winner = null;
+  room.duelReveal = undefined;
+  room.roundClosed = false; // NEW guard to avoid double stats
+}
+
 // ---------- HTTP + Socket.IO (same server) ----------
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: corsOptions });
@@ -126,51 +146,58 @@ io.on("connection", (socket) => {
     const room = rooms.get(roomId);
     if (!room) return cb?.({ error: "Room not found" });
     if (room.mode !== "duel") return cb?.({ error: "Wrong mode" });
-
-    // reset per‑player state
+  
     Object.values(room.players).forEach((p) => {
       p.guesses = [];
       p.done = false;
       p.ready = false;
       p.secret = null;
+      // keep wins/streak
     });
-
-    // reset room flags
+  
     room.started = false;
-    room.winner = null;
-    room.duelReveal = undefined;
-
+    resetRoundFlags(room);
+  
     io.to(roomId).emit("roomState", sanitizeRoom(room));
     cb?.({ ok: true });
   });
 
   // RESUME: client sends oldId + roomId after reconnect; we move their state
-socket.on("resume", ({ roomId, oldId }, cb) => {
-  const room = rooms.get(roomId);
-  if (!room) return cb?.({ error: "Room not found" });
-  const oldPlayer = room.players[oldId];
-  if (!oldPlayer) return cb?.({ error: "Old session not found" });
+  socket.on("resume", ({ roomId, oldId }, cb) => {
+    const room = rooms.get(roomId);
+    if (!room) return cb?.({ error: "Room not found" });
+  
+    const oldPlayer = room.players[oldId];
+    if (!oldPlayer) return cb?.({ error: "Old session not found" });
+  
+    // If the new socket id already exists (e.g., auto-joined), remove/merge it
+    if (room.players[socket.id] && socket.id !== oldId) {
+      delete room.players[socket.id];
+    }
+  
+    // Move the player state to the new socket id
+    room.players[socket.id] = { ...oldPlayer, disconnected: false };
+    if (room.hostId === oldId) room.hostId = socket.id;
+    if (room.battle?.winner === oldId) room.battle.winner = socket.id;
+    if (room.winner === oldId) room.winner = socket.id;
+  
+    delete room.players[oldId];
+  
+    socket.join(roomId);
+    io.to(roomId).emit("roomState", sanitizeRoom(room));
+    cb?.({ ok: true });
+  });
 
-  // adopt old state under the new socket.id
-  room.players[socket.id] = { ...oldPlayer, disconnected: false };
-  delete room.players[oldId];
-
-  // if they were host, transfer hostId
-  if (room.hostId === oldId) room.hostId = socket.id;
-
-  socket.join(roomId);
-  io.to(roomId).emit("roomState", sanitizeRoom(room));
-  cb?.({ ok: true });
-});
-
-// On disconnect, mark but do NOT delete immediately
 socket.on("disconnect", () => {
   for (const [id, room] of rooms) {
     if (room.players[socket.id]) {
+      // mark as disconnected; keep their state for resume
       room.players[socket.id].disconnected = true;
+
+      // If absolutely nobody remains connected you can optionally keep the room;
       io.to(id).emit("roomState", sanitizeRoom(room));
-      // only delete the room if *no* players remain at all
-      if (Object.keys(room.players).length === 0) rooms.delete(id);
+
+      // DO NOT delete player; DO NOT delete room.
     }
   }
 });
@@ -192,16 +219,17 @@ socket.on("disconnect", () => {
     
 
   // when creating the room:
-room.players[socket.id] = {
-  name,
-  ready: false,
-  secret: null,
-  guesses: [],
-  done: false,
-  wins: 0,
-  streak: 0,
-  disconnected: false, // NEW
-};
+  room.players[socket.id] = {
+    name,
+    ready: false,
+    secret: null,
+    guesses: [],
+    done: false,
+    // NEW
+    wins: 0,
+    streak: 0,
+    disconnected: false,
+  };
     rooms.set(id, room);
     socket.join(id);
     cb?.({ roomId: id });
@@ -214,16 +242,17 @@ room.players[socket.id] = {
     if (room.mode === "duel" && Object.keys(room.players).length >= 2)
       return cb?.({ error: "Room is full" });
   // when creating the room:
-room.players[socket.id] = {
-  name,
-  ready: false,
-  secret: null,
-  guesses: [],
-  done: false,
-  wins: 0,
-  streak: 0,
-  disconnected: false, // NEW
-};
+  room.players[socket.id] = {
+    name,
+    ready: false,
+    secret: null,
+    guesses: [],
+    done: false,
+    // NEW
+    wins: 0,
+    streak: 0,
+    disconnected: false,
+  };
     socket.join(roomId);
     cb?.({ ok: true });
     io.to(roomId).emit("roomState", sanitizeRoom(room));
@@ -275,15 +304,20 @@ room.players[socket.id] = {
       const ids = Object.keys(room.players);
       if (ids.length === 2) {
         const [a, b] = ids;
-        const A = room.players[a],
-          B = room.players[b];
+        const A = room.players[a], B = room.players[b];
         const bothDone = A.done && B.done;
-        if (room.winner || bothDone) {
-          room.started = false; // mark round ended
-          room.duelReveal = { [a]: A.secret, [b]: B.secret }; // used by client modal
+      
+        if ((room.winner || bothDone) && !room.roundClosed) {
+          room.started = false; // mark ended
+          room.duelReveal = { [a]: A.secret, [b]: B.secret };
+      
+          // Apply stats exactly once
+          if (room.winner && room.winner !== "draw") {
+            updateStatsOnWin(room, room.winner);
+          }
+          room.roundClosed = true;
         }
       }
-
       io.to(roomId).emit("roomState", sanitizeRoom(room));
       return cb?.({ ok: true, pattern });
     }
@@ -304,30 +338,42 @@ if (room.mode === "battle") {
   const pattern = scoreGuess(room.battle.secret, g);
   player.guesses.push({ guess: g, pattern });
 
+  let endNow = false;
+
   if (g === room.battle.secret) {
-    // --- WINNER PATH ---
     room.battle.winner = socket.id;
     room.battle.started = false;
-    room.battle.reveal  = room.battle.secret;
+    room.battle.reveal = room.battle.secret;
+    endNow = true;
 
-    // mark others done for clean UI
+    // mark others done
     Object.keys(room.players).forEach((pid) => {
       if (pid !== socket.id) room.players[pid].done = true;
     });
+
+    if (!room.roundClosed) {
+      updateStatsOnWin(room, socket.id);
+      room.roundClosed = true;
+    }
   } else if (player.guesses.length >= 6) {
-    // player just ran out of guesses
     player.done = true;
 
-    // --- NO-WINNER PATH: if ALL non-host players are done, end & reveal ---
-    const nonHostIds = Object.keys(room.players).filter(id => id !== room.hostId);
-    const allDone = nonHostIds.length > 0 && nonHostIds.every(id => room.players[id].done);
+    // if all non-host players are done and no winner, end and reveal
+    const nonHostIds = Object.keys(room.players).filter((pid) => pid !== room.hostId);
+    const allDone = nonHostIds.every((pid) => room.players[pid].done);
 
-    if (allDone) {
+    if (allDone && !room.battle.winner) {
       room.battle.started = false;
-      room.battle.winner  = null;                // no winner
-      room.battle.reveal  = room.battle.secret;  // reveal the answer so host gets Play Again UI
-      // (players already marked done)
+      room.battle.reveal = room.battle.secret;
+      endNow = true;
+      // No winner -> no stats update
+      room.roundClosed = true;
     }
+  }
+
+  if (endNow) {
+    io.to(roomId).emit("roomState", sanitizeRoom(room));
+    return cb?.({ ok: true, pattern });
   }
 
   io.to(roomId).emit("roomState", sanitizeRoom(room));
@@ -357,26 +403,25 @@ if (room.mode === "battle") {
     const room = rooms.get(roomId);
     if (!room) return cb?.({ error: "Room not found" });
     if (room.mode !== "battle") return cb?.({ error: "Wrong mode" });
-    if (socket.id !== room.hostId)
-      return cb?.({ error: "Only host can start" });
+    if (socket.id !== room.hostId) return cb?.({ error: "Only host can start" });
     if (!room.battle.secret) return cb?.({ error: "Set a word first" });
-    if (Object.keys(room.players).length < 2)
-      return cb?.({ error: "Need at least 2 players" });
-
+    if (Object.keys(room.players).length < 2) return cb?.({ error: "Need at least 2 players" });
+  
     room.battle.started = true;
     room.battle.winner = null;
     room.battle.reveal = null;
+    room.roundClosed = false;
+  
     io.to(roomId).emit("roomState", sanitizeRoom(room));
     cb?.({ ok: true });
   });
-
+  
   socket.on("playAgain", ({ roomId }, cb) => {
     const room = rooms.get(roomId);
     if (!room) return cb?.({ error: "Room not found" });
     if (room.mode !== "battle") return cb?.({ error: "Wrong mode" });
-    if (socket.id !== room.hostId)
-      return cb?.({ error: "Only host can reset" });
-
+    if (socket.id !== room.hostId) return cb?.({ error: "Only host can reset" });
+  
     Object.values(room.players).forEach((p) => {
       p.guesses = [];
       p.done = false;
@@ -384,22 +429,13 @@ if (room.mode === "battle") {
     room.battle.started = false;
     room.battle.winner = null;
     room.battle.reveal = null;
-    room.battle.secret = null; // always require a new word
-
+    room.battle.secret = null; // require new word
+    room.roundClosed = false;
+  
     io.to(roomId).emit("roomState", sanitizeRoom(room));
     cb?.({ ok: true });
   });
 
-  socket.on("disconnect", () => {
-    // Remove player from each room they’re in
-    for (const [id, r] of rooms) {
-      if (r.players[socket.id]) {
-        delete r.players[socket.id];
-        io.to(id).emit("roomState", sanitizeRoom(r));
-        if (Object.keys(r.players).length === 0) rooms.delete(id);
-      }
-    }
-  });
 });
 
 // ---------- Helpers ----------
@@ -474,7 +510,6 @@ function sanitizeRoom(room) {
     },
   };
 }
-
 // ---------- Start server ----------
 const PORT = process.env.PORT || 8080; // Railway injects PORT in prod
 httpServer.listen(PORT, () => console.log("Server listening on", PORT));
