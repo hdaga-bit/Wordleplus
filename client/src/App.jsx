@@ -47,25 +47,25 @@ function ConnectionBar({ connected, canRejoin, onRejoin, savedRoomId }) {
 }
 
 // Simple notice modal for "Round Started"
-function NoticeModal({ open, onClose, title, text }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-md mx-4 rounded-xl bg-white dark:bg-neutral-900 shadow-xl ring-1 ring-black/10 animate-[popIn_200ms_ease-out]">
-        <div className="p-6">
-          <h3 className="text-xl font-bold">{title}</h3>
-          <p className="mt-2 text-sm text-muted-foreground">{text}</p>
-          <div className="mt-4 flex justify-end">
-            <Button onClick={onClose} autoFocus>
-              Close
-            </Button>
-          </div>
-        </div>
-      </div>
-      <style>{`@keyframes popIn{0%{opacity:0;transform:translateY(6px) scale(.96)}100%{opacity:1;transform:translateY(0) scale(1)}}`}</style>
-    </div>
-  );
-}
+// function NoticeModal({ open, onClose, title, text }) {
+//   if (!open) return null;
+//   return (
+//     <div className="fixed inset-0 z-40 grid place-items-center bg-black/40 backdrop-blur-sm">
+//       <div className="w-full max-w-md mx-4 rounded-xl bg-white dark:bg-neutral-900 shadow-xl ring-1 ring-black/10 animate-[popIn_200ms_ease-out]">
+//         <div className="p-6">
+//           <h3 className="text-xl font-bold">{title}</h3>
+//           <p className="mt-2 text-sm text-muted-foreground">{text}</p>
+//           <div className="mt-4 flex justify-end">
+//             <Button onClick={onClose} autoFocus>
+//               Close
+//             </Button>
+//           </div>
+//         </div>
+//       </div>
+//       <style>{`@keyframes popIn{0%{opacity:0;transform:translateY(6px) scale(.96)}100%{opacity:1;transform:translateY(0) scale(1)}}`}</style>
+//     </div>
+//   );
+// }
 
 function useRoomState() {
   const [room, setRoom] = useState(null);
