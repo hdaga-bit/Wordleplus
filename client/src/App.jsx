@@ -597,7 +597,8 @@ export default function App() {
                     </div>
                   </div>
 
-                  {room?.battle?.secret && (
+                  {/* Game Status - Only show to host, not to players */}
+                  {isHost && room?.battle?.secret && (
                     <div className="text-center space-y-1">
                       <p className="text-sm text-slate-600">
                         Current Word:{" "}
@@ -624,6 +625,38 @@ export default function App() {
                           No winner - word revealed
                         </p>
                       )}
+                    </div>
+                  )}
+
+                  {/* Game Status for Players - No word spoilers */}
+                  {!isHost && (
+                    <div className="text-center space-y-1">
+                      {room?.battle?.started &&
+                        !room?.battle?.winner &&
+                        !room?.battle?.reveal && (
+                          <p className="text-xs text-emerald-600 font-medium">
+                            Game in progress... Good luck!
+                          </p>
+                        )}
+                      {room?.battle?.winner && (
+                        <p className="text-xs text-blue-600 font-medium">
+                          Winner:{" "}
+                          {players.find((p) => p.id === room.battle.winner)
+                            ?.name || "Unknown"}
+                        </p>
+                      )}
+                      {room?.battle?.reveal && !room?.battle?.winner && (
+                        <p className="text-xs text-amber-600 font-medium">
+                          No winner - word revealed
+                        </p>
+                      )}
+                      {!room?.battle?.started &&
+                        !room?.battle?.winner &&
+                        !room?.battle?.reveal && (
+                          <p className="text-xs text-slate-600 font-medium">
+                            Waiting for host to start the game...
+                          </p>
+                        )}
                     </div>
                   )}
                 </div>
