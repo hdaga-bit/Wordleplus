@@ -777,6 +777,7 @@ useEffect(() => {
   );
 }
 
+// PlayersList component
 function PlayersList({
   players,
   hostId,
