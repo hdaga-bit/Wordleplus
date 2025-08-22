@@ -177,7 +177,14 @@ io.on("connection", (socket) => {
 
     // Move the player state to the new socket id
     room.players[socket.id] = { ...oldPlayer, disconnected: false };
-    if (room.hostId === oldId) room.hostId = socket.id;
+
+    // CRITICAL: Restore host status if this was the host
+    if (room.hostId === oldId) {
+      room.hostId = socket.id;
+      console.log(`Host reconnected: ${oldId} -> ${socket.id}`);
+    }
+
+    // Restore other references
     if (room.battle?.winner === oldId) room.battle.winner = socket.id;
     if (room.winner === oldId) room.winner = socket.id;
 
