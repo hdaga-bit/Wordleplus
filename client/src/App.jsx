@@ -6,6 +6,7 @@ import Keyboard from "./components/Keyboard.jsx";
 import { validateWord } from "./api";
 import { cn } from "./lib/utils.js";
 import VictoryModal from "./components/VictoryModal.jsx";
+import PlayerCard from "./components/PlayerCard.jsx";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +83,7 @@ export default function App() {
   const [name, setName] = useState(localStorage.getItem(LS_LAST_NAME) || "");
   const [roomId, setRoomId] = useState(localStorage.getItem(LS_LAST_ROOM) || "");
   const [mode, setMode] = useState(localStorage.getItem(LS_LAST_MODE) || "duel");
+
 
   // Duel
   const [secret, setSecret] = useState("");
@@ -228,29 +230,30 @@ export default function App() {
     }
   };
 
-  // Show victory & duel start notices
-  useEffect(() => {
-    if (!room) return;
-    if (room.mode === "duel") {
-      const ended = !!room.winner || room.started === false;
-      if (ended) setShowVictory(true);
-    }
-    if (room.mode === "battle") {
-      if (
-        !room.battle?.started &&
-        (room.battle?.winner || room.battle?.reveal)
-      ) {
-        setShowVictory(true);
-      }
-    }
-  }, [
-    room?.mode,
-    room?.started,
-    room?.winner,
-    room?.battle?.started,
-    room?.battle?.winner,
-    room?.battle?.reveal,
-  ]);
+  // Show victory when there is a real outcome (not just started=false at lobby)
+useEffect(() => {
+  if (!room) return;
+
+  if (room.mode === "duel") {
+    // show ONLY if we have a winner or a duelReveal payload
+    const shouldShow = Boolean(room.winner) || Boolean(room.duelReveal);
+    setShowVictory(shouldShow);
+    return;
+  }
+
+  if (room.mode === "battle") {
+    const shouldShow =
+      !room.battle?.started && (room.battle?.winner || room.battle?.reveal);
+    setShowVictory(shouldShow);
+  }
+}, [
+  room?.mode,
+  room?.winner,
+  room?.duelReveal,          // <-- add this dep
+  room?.battle?.started,
+  room?.battle?.winner,
+  room?.battle?.reveal,
+]);
 
   // small transient toast support
   useEffect(() => {
@@ -265,6 +268,7 @@ export default function App() {
       if (resp?.roomId) {
         setRoomId(resp.roomId);
         setCurrentGuess("");
+        setShowVictory(false);
         setScreen("lobby");
         persistSession({ name, roomId: resp.roomId, mode });
       }
@@ -275,6 +279,7 @@ export default function App() {
       if (resp?.error) setMsg(resp.error);
       else {
         setCurrentGuess("");
+        setShowVictory(false);
         setScreen("lobby");
         persistSession({ name, roomId, mode });
       }
@@ -568,147 +573,159 @@ export default function App() {
         </div>
       )}
 
-      {/* DUEL GAME */}
-      {screen === "game" && room?.mode === "duel" && (
-        <div className="max-w-7xl mx-auto p-4 space-y-4">
-          <h2 className="text-xl font-bold text-center text-gray-700">
-            Fewest guesses wins
-          </h2>
+  
+{/* DUEL GAME */}
+{screen === "game" && room?.mode === "duel" && (
+  <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
+    <header className="px-4 pt-3 pb-2">
+      <h2 className="text-base md:text-lg font-semibold text-center text-muted-foreground">
+        Fewest guesses wins
+      </h2>
+    </header>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <section>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-blue-200 grid place-items-center text-xl">
-                  🧑
-                </div>
-                <div>
-                  <p className="font-semibold">{me?.name} (You)</p>
-                  <p className="text-xs text-muted-foreground">
-                    Guessing opponent’s word
-                  </p>
-                </div>
-              </div>
-              <Board
-                guesses={me?.guesses || []}
-                activeGuess={currentGuess}
-                errorShakeKey={shakeKey}
-                errorActiveRow={showActiveError}
-              />
-            </section>
+    <main className="flex-1 px-4 pb-2 md:pb-4">
+      <div className="h-full w-full grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 place-items-center">
+        {/* YOU */}
+        <section className="h-full w-[300px] flex flex-col">
+  <div className="w-[300px] max-w-[min(92vw,820px)]">
+    <PlayerCard
+      name={me?.name || "You"}
+      wins={me?.wins}
+      streak={me?.streak}
+      avatar="🧑"
+      className="mb-2"
+    />
+  </div>
+  <div className="flex-1 w-full flex items-center justify-center">
+    <div className="h-full w-full max-w-[min(92vw,820px)] max-h-full mx-auto">
+      <Board
+        guesses={me?.guesses || []}
+        activeGuess={currentGuess}
+        errorShakeKey={shakeKey}
+        errorActiveRow={showActiveError}
+      />
+    </div>
+  </div>
+</section>
 
-            <section>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-pink-200 grid place-items-center text-xl">
-                  🧑‍💻
-                </div>
-                <div>
-                  <p className="font-semibold">{opponent?.name || "—"}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {opponent?.disconnected
-                      ? "Opponent disconnected… waiting"
-                      : "Guessing your word"}
-                  </p>
-                </div>
-              </div>
-              <Board guesses={opponent?.guesses || []} activeGuess="" />
-            </section>
+        {/* OPPONENT (hidden on mobile) */}
+        <section className="h-full w-[300px] hidden md:flex flex-col">
+  <div className="w-[300px] max-w-[min(92vw,820px)] mx-auto">
+    <PlayerCard
+      name={opponent?.name || "—"}
+      wins={opponent?.wins}
+      streak={opponent?.streak}
+      avatar="🧑‍💻"
+      className="mb-2"
+    />
+  </div>
+  <div className="flex-1 w-full flex items-center justify-center">
+    <div className="h-full w-full max-w-[min(92vw,820px)] max-h-full mx-auto">
+      <Board guesses={opponent?.guesses || []} activeGuess="" />
+    </div>
+  </div>
+</section>
+      </div>
+    </main>
+
+    <footer className="shrink-0 w-full px-2 sm:px-4 pb-4 md:pb-6">
+      <div className="mx-auto w-full max-w-5xl">
+        <Keyboard onKeyPress={handleDuelKey} letterStates={letterStates} />
+      </div>
+    </footer>
+  </div>
+)}
+
+{/* BATTLE GAME (no page scroll) */}
+{screen === "game" && room?.mode === "battle" && (
+  isHost ? (
+    // Host spectate: keep page fixed height; let the grid scroll internally if needed
+    <div className="h-svh max-h-svh grid grid-rows-[auto,1fr,auto]">
+      <header className="px-4 pt-4">
+        <h2 className="text-xl font-bold text-slate-700">Host Spectate View</h2>
+      </header>
+      <main className="px-4 overflow-auto pb-2">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {Object.entries(room?.players || {})
+        .filter(([id]) => id !== room?.hostId)
+        .map(([id, p]) => {
+          const progress = p.done ? "Done" : `${p.guesses?.length ?? 0}/6`;
+          return (
+            <div key={id} className="flex flex-col">
+        <div className="w-full max-w-[min(92vw,820px)] mx-auto">
+          <PlayerCard
+            name={p.name}
+            wins={p.wins}
+            streak={p.streak}
+            avatar={((p.name || "").trim().split(/\s+/).slice(0,2).map(x=>x[0]?.toUpperCase()).join("")) || "?"}
+            size="sm"
+            rightExtras={
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-foreground/80 ring-1 ring-border">
+                {progress}
+              </span>
+            }
+            className="mb-2"
+          />
+        </div>
+        <div className="w-full max-w-[min(92vw,820px)] mx-auto">
+          <Board guesses={p.guesses || []} tile={50} gap={8} />
+        </div>
+      </div>
+          );
+        })}
+    </div>
+      </main>
+      <footer className="px-4 pb-4">
+        {(room?.battle?.winner || room?.battle?.reveal) && !room?.battle?.started && (
+          <div className="flex gap-2">
+            <Input
+              placeholder="Enter new secret word"
+              value={hostWord}
+              onChange={(e) => setHostWord(e.target.value)}
+              maxLength={5}
+              className="w-40"
+            />
+            <Button onClick={setWordAndStart}>Play again</Button>
           </div>
+        )}
+      </footer>
+    </div>
+  ) : (
+    // Player board: same mobile style on desktop, no page scroll
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
+    <header className="px-4 pt-3 pb-2">
+      <h2 className="text-base md:text-lg font-semibold text-center text-muted-foreground">
+        Battle Royale
+      </h2>
+    </header>
 
-          <Keyboard onKeyPress={handleDuelKey} letterStates={letterStates} />
+    <main className="flex-1 px-4 pb-2 md:pb-4">
+      <div className="h-full w-full flex items-center justify-center">
+        <div className="h-full w-full max-w-[min(92vw,820px)] max-h-full">
+          <Board
+            guesses={me?.guesses || []}
+            activeGuess={currentGuess}
+            errorShakeKey={shakeKey}
+            errorActiveRow={showActiveError}
+          />
+        </div>
+      </div>
+    </main>
+
+    <footer className="shrink-0 w-full px-2 sm:px-4 pb-4 md:pb-6">
+      {canGuessBattle && (
+        <div className="mx-auto w-full max-w-5xl">
+          <Keyboard
+            onKeyPress={handleBattleKey}
+            letterStates={letterStates}
+            className="w-full"
+          />
         </div>
       )}
-
-      {/* BATTLE GAME */}
-      {screen === "game" && room?.mode === "battle" &&
-        (isHost ? (
-          <div className="max-w-7xl mx-auto p-4 space-y-6">
-            <h2 className="text-xl font-bold text-slate-700">
-              Host Spectate View
-            </h2>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {Object.entries(room?.players || {})
-                .filter(([id]) => id !== room?.hostId)
-                .map(([id, p]) => {
-                  const initials =
-                    (p.name || "")
-                      .trim()
-                      .split(/\s+/)
-                      .slice(0, 2)
-                      .map((x) => x[0]?.toUpperCase())
-                      .join("") || "?";
-                  const onStreak = (p.streak ?? 0) > 1;
-                  return (
-                    <div key={id}>
-                      <div className="pb-2 flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-full bg-muted grid place-items-center text-sm font-semibold">
-                          {initials}
-                        </div>
-                        <div>
-                          <p className="text-base">{p.name}</p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs text-muted-foreground">
-                              {p.done ? "Done" : `${p.guesses?.length ?? 0}/6`}
-                            </p>
-                            {/* compact stats */}
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
-                                W:{p.wins ?? 0}
-                              </span>
-                              <span
-                                className={cn(
-                                  "text-[10px] px-1.5 py-0.5 rounded ring-1",
-                                  onStreak
-                                    ? "bg-emerald-100 text-emerald-800 ring-emerald-300 animate-[glow_1.8s_ease-in-out_infinite]"
-                                    : "bg-indigo-50 text-indigo-700 ring-indigo-200"
-                                )}
-                              >
-                                Stk:{p.streak ?? 0}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <Board guesses={p.guesses || []} tile={50} gap={8} />
-                    </div>
-                  );
-                })}
-            </div>
-
-            {(room?.battle?.winner || room?.battle?.reveal) &&
-              !room?.battle?.started && (
-                <div className="flex gap-2 mt-4">
-                  <Input
-                    placeholder="Enter new secret word"
-                    value={hostWord}
-                    onChange={(e) => setHostWord(e.target.value)}
-                    maxLength={5}
-                    className="w-40"
-                  />
-                  <Button onClick={setWordAndStart}>Play again</Button>
-                </div>
-              )}
-          </div>
-        ) : (
-          <div className="max-w-7xl mx-auto p-4 space-y-6">
-            <h2 className="text-xl font-bold text-center text-slate-700">
-              Battle Royale
-            </h2>
-            <Board
-              guesses={me?.guesses || []}
-              activeGuess={currentGuess}
-              tile={56}
-              gap={8}
-              errorShakeKey={shakeKey}
-              errorActiveRow={showActiveError}
-            />
-            {canGuessBattle && (
-              <Keyboard
-                onKeyPress={handleBattleKey}
-                letterStates={letterStates}
-              />
-            )}
-          </div>
-        ))}
+    </footer>
+  </div>
+  )
+)}
 
       {/* Victory Modal */}
       {room && (
