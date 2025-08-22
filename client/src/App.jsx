@@ -777,6 +777,7 @@ useEffect(() => {
   );
 }
 
+// PlayerCard component just added
 // PlayersList component
 function PlayersList({
   players,
