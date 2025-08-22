@@ -170,7 +170,7 @@ function GameResults({ room, players, correctWord }) {
               if (!winner && room?.battle?.winner) {
                 const winnerId = room.battle.winner;
                 const winnerFromRoom = players.find((p) => p.id === winnerId);
-                if (winnerFromRoom) {
+                if (winnerFromRoom && room?.battle?.reveal) {
                   return (
                     <div className="grid grid-cols-5 gap-2">
                       {room.battle.reveal.split("").map((letter, index) => (
@@ -201,7 +201,11 @@ function GameResults({ room, players, correctWord }) {
                   );
                 });
 
-                if (winningGuess) {
+                if (
+                  winningGuess &&
+                  winningGuess.guess &&
+                  typeof winningGuess.guess === "string"
+                ) {
                   return (
                     <div className="grid grid-cols-5 gap-2">
                       {winningGuess.guess.split("").map((letter, index) => (
@@ -218,7 +222,11 @@ function GameResults({ room, players, correctWord }) {
 
                 // If no perfect pattern found, try to find the last guess (most likely the winning one)
                 const lastGuess = winner.guesses[winner.guesses.length - 1];
-                if (lastGuess && lastGuess.guess) {
+                if (
+                  lastGuess &&
+                  lastGuess.guess &&
+                  typeof lastGuess.guess === "string"
+                ) {
                   return (
                     <div className="grid grid-cols-5 gap-2">
                       {lastGuess.guess.split("").map((letter, index) => (
@@ -235,7 +243,10 @@ function GameResults({ room, players, correctWord }) {
               }
 
               // Fallback: try to get from room.battle.reveal (this is where the word is stored!)
-              if (room?.battle?.reveal) {
+              if (
+                room?.battle?.reveal &&
+                typeof room.battle.reveal === "string"
+              ) {
                 return (
                   <div className="grid grid-cols-5 gap-2">
                     {room.battle.reveal.split("").map((letter, index) => (
@@ -253,7 +264,7 @@ function GameResults({ room, players, correctWord }) {
               // Fallback: try to get from room.battle.secret or revealedWord
               const wordToShow =
                 room?.battle?.revealedWord || room?.battle?.secret;
-              if (wordToShow) {
+              if (wordToShow && typeof wordToShow === "string") {
                 return (
                   <div className="grid grid-cols-5 gap-2">
                     {wordToShow.split("").map((letter, index) => (
@@ -279,7 +290,11 @@ function GameResults({ room, players, correctWord }) {
               ) {
                 const lastGuess =
                   anyWinner.guesses[anyWinner.guesses.length - 1];
-                if (lastGuess && lastGuess.guess) {
+                if (
+                  lastGuess &&
+                  lastGuess.guess &&
+                  typeof lastGuess.guess === "string"
+                ) {
                   return (
                     <div className="grid grid-cols-5 gap-2">
                       {lastGuess.guess.split("").map((letter, index) => (
