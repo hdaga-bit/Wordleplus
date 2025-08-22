@@ -178,6 +178,12 @@ export default function App() {
       // remember the last socket id as "old" for resume
       const last = localStorage.getItem(LS_LAST_SOCKET);
       if (last) localStorage.setItem(LS_LAST_SOCKET + ".old", last);
+
+      // Remember if this user was a host for reconnection
+      if (room?.hostId === socket.id) {
+        localStorage.setItem(LS_LAST_SOCKET + ".wasHost", "true");
+      }
+
       setConnected(false);
     };
     socket.on("connect", onConnect);
@@ -217,8 +223,23 @@ export default function App() {
             }
           );
         } else {
-          setScreen("game"); // server will push correct roomState
+          // For battle mode, go directly to game screen (host will see spectate view)
+          // For duel mode, server will push correct roomState
+          if (localStorage.getItem(LS_LAST_MODE) === "battle") {
+            setScreen("game");
+          }
           setRejoinOffered(false);
+
+          // Show reconnection success message
+          const wasHost =
+            localStorage.getItem(LS_LAST_SOCKET + ".wasHost") === "true";
+          if (wasHost) {
+            setMsg("Successfully reconnected as host! 👑");
+            // Clear the wasHost flag after successful reconnection
+            localStorage.removeItem(LS_LAST_SOCKET + ".wasHost");
+          } else {
+            setMsg("Successfully reconnected! ✅");
+          }
         }
       });
     } else {
@@ -553,6 +574,29 @@ export default function App() {
                   <h2 className="text-2xl font-bold text-slate-800 text-center mb-2">
                     Battle Royale
                   </h2>
+
+                  {/* Room ID Display */}
+                  <div className="text-center mb-3">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg">
+                      <span className="text-xs text-slate-600 font-medium">
+                        Room:
+                      </span>
+                      <span className="font-mono font-bold text-slate-800 text-sm">
+                        {room?.id}
+                      </span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(room?.id || "");
+                          setMsg("Room ID copied to clipboard!");
+                        }}
+                        className="text-slate-500 hover:text-slate-700 transition-colors"
+                        aria-label="Copy room ID"
+                      >
+                        📋
+                      </button>
+                    </div>
+                  </div>
+
                   {room?.battle?.secret && (
                     <div className="text-center space-y-1">
                       <p className="text-sm text-slate-600">
@@ -591,7 +635,7 @@ export default function App() {
                   // Host Spectate View - Clean Grid Layout
                   <div className="w-full h-full flex flex-col">
                     {/* Host Status Indicator */}
-                    <div className="text-center mb-4">
+                    <div className="text-center mb-4 space-y-2">
                       <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
                         <span className="text-blue-600 text-lg">👑</span>
                         <span className="text-sm font-medium text-blue-800">
@@ -599,6 +643,17 @@ export default function App() {
                         </span>
                         <span className="text-blue-600 text-lg">👑</span>
                       </div>
+
+                      {/* Reconnection Status */}
+                      {localStorage.getItem(LS_LAST_SOCKET + ".wasHost") ===
+                        "true" && (
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
+                          <span className="text-green-600 text-sm">🔄</span>
+                          <span className="text-xs text-green-700 font-medium">
+                            Reconnected as Host
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Dynamic Header - Game Status or New Word Input */}
@@ -680,6 +735,28 @@ export default function App() {
                 ) : (
                   // Player Game View - Perfect Viewport Fit with Optimized Board Sizing
                   <div className="flex-1 px-4 flex items-center justify-center min-h-0">
+                    {/* Room ID Display for Players */}
+                    <div className="absolute top-4 left-4 z-10">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg shadow-sm">
+                        <span className="text-xs text-slate-600 font-medium">
+                          Room:
+                        </span>
+                        <span className="font-mono font-bold text-slate-800 text-sm">
+                          {room?.id}
+                        </span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(room?.id || "");
+                            setMsg("Room ID copied to clipboard!");
+                          }}
+                          className="text-slate-500 hover:text-slate-700 transition-colors"
+                          aria-label="Copy room ID"
+                        >
+                          📋
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="w-full h-full flex items-center justify-center relative">
                       {room?.battle?.started ? (
                         <div className="w-full h-full flex items-center justify-center">
