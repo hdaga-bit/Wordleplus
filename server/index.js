@@ -146,7 +146,7 @@ io.on("connection", (socket) => {
     const room = rooms.get(roomId);
     if (!room) return cb?.({ error: "Room not found" });
     if (room.mode !== "duel") return cb?.({ error: "Wrong mode" });
-  
+
     Object.values(room.players).forEach((p) => {
       p.guesses = [];
       p.done = false;
@@ -154,10 +154,10 @@ io.on("connection", (socket) => {
       p.secret = null;
       // keep wins/streak
     });
-  
+
     room.started = false;
     resetRoundFlags(room);
-  
+
     io.to(roomId).emit("roomState", sanitizeRoom(room));
     cb?.({ ok: true });
   });
@@ -166,42 +166,41 @@ io.on("connection", (socket) => {
   socket.on("resume", ({ roomId, oldId }, cb) => {
     const room = rooms.get(roomId);
     if (!room) return cb?.({ error: "Room not found" });
-  
+
     const oldPlayer = room.players[oldId];
     if (!oldPlayer) return cb?.({ error: "Old session not found" });
-  
+
     // If the new socket id already exists (e.g., auto-joined), remove/merge it
     if (room.players[socket.id] && socket.id !== oldId) {
       delete room.players[socket.id];
     }
-  
+
     // Move the player state to the new socket id
     room.players[socket.id] = { ...oldPlayer, disconnected: false };
     if (room.hostId === oldId) room.hostId = socket.id;
     if (room.battle?.winner === oldId) room.battle.winner = socket.id;
     if (room.winner === oldId) room.winner = socket.id;
-  
+
     delete room.players[oldId];
-  
+
     socket.join(roomId);
     io.to(roomId).emit("roomState", sanitizeRoom(room));
     cb?.({ ok: true });
   });
 
-socket.on("disconnect", () => {
-  for (const [id, room] of rooms) {
-    if (room.players[socket.id]) {
-      // mark as disconnected; keep their state for resume
-      room.players[socket.id].disconnected = true;
+  socket.on("disconnect", () => {
+    for (const [id, room] of rooms) {
+      if (room.players[socket.id]) {
+        // mark as disconnected; keep their state for resume
+        room.players[socket.id].disconnected = true;
 
-      // If absolutely nobody remains connected you can optionally keep the room;
-      io.to(id).emit("roomState", sanitizeRoom(room));
+        // If absolutely nobody remains connected you can optionally keep the room;
+        io.to(id).emit("roomState", sanitizeRoom(room));
 
-      // DO NOT delete player; DO NOT delete room.
+        // DO NOT delete player; DO NOT delete room.
+      }
     }
-  }
-});
-  
+  });
 
   socket.on("createRoom", ({ name, mode = "duel" }, cb) => {
     const id = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -216,20 +215,18 @@ socket.on("disconnect", () => {
       battle: { secret: null, started: false, winner: null, reveal: null },
     };
 
-    
-
-  // when creating the room:
-  room.players[socket.id] = {
-    name,
-    ready: false,
-    secret: null,
-    guesses: [],
-    done: false,
-    // NEW
-    wins: 0,
-    streak: 0,
-    disconnected: false,
-  };
+    // when creating the room:
+    room.players[socket.id] = {
+      name,
+      ready: false,
+      secret: null,
+      guesses: [],
+      done: false,
+      // NEW
+      wins: 0,
+      streak: 0,
+      disconnected: false,
+    };
     rooms.set(id, room);
     socket.join(id);
     cb?.({ roomId: id });
@@ -241,18 +238,18 @@ socket.on("disconnect", () => {
     if (!room) return cb?.({ error: "Room not found" });
     if (room.mode === "duel" && Object.keys(room.players).length >= 2)
       return cb?.({ error: "Room is full" });
-  // when creating the room:
-  room.players[socket.id] = {
-    name,
-    ready: false,
-    secret: null,
-    guesses: [],
-    done: false,
-    // NEW
-    wins: 0,
-    streak: 0,
-    disconnected: false,
-  };
+    // when creating the room:
+    room.players[socket.id] = {
+      name,
+      ready: false,
+      secret: null,
+      guesses: [],
+      done: false,
+      // NEW
+      wins: 0,
+      streak: 0,
+      disconnected: false,
+    };
     socket.join(roomId);
     cb?.({ ok: true });
     io.to(roomId).emit("roomState", sanitizeRoom(room));
@@ -304,13 +301,14 @@ socket.on("disconnect", () => {
       const ids = Object.keys(room.players);
       if (ids.length === 2) {
         const [a, b] = ids;
-        const A = room.players[a], B = room.players[b];
+        const A = room.players[a],
+          B = room.players[b];
         const bothDone = A.done && B.done;
-      
+
         if ((room.winner || bothDone) && !room.roundClosed) {
           room.started = false; // mark ended
           room.duelReveal = { [a]: A.secret, [b]: B.secret };
-      
+
           // Apply stats exactly once
           if (room.winner && room.winner !== "draw") {
             updateStatsOnWin(room, room.winner);
@@ -322,63 +320,64 @@ socket.on("disconnect", () => {
       return cb?.({ ok: true, pattern });
     }
 
- 
-// BATTLE logic
-if (room.mode === "battle") {
-  if (socket.id === room.hostId) {
-    return cb?.({ error: "Host is spectating this round" });
-  }
-  if (!room.battle.started) return cb?.({ error: "Battle not started" });
+    // BATTLE logic
+    if (room.mode === "battle") {
+      if (socket.id === room.hostId) {
+        return cb?.({ error: "Host is spectating this round" });
+      }
+      if (!room.battle.started) return cb?.({ error: "Battle not started" });
 
-  const player = room.players[socket.id];
-  if (!player) return cb?.({ error: "Not in room" });
-  if (player.done) return cb?.({ error: "No guesses left" });
+      const player = room.players[socket.id];
+      if (!player) return cb?.({ error: "Not in room" });
+      if (player.done) return cb?.({ error: "No guesses left" });
 
-  const g = (guess || "").toUpperCase();
-  const pattern = scoreGuess(room.battle.secret, g);
-  player.guesses.push({ guess: g, pattern });
+      const g = (guess || "").toUpperCase();
+      const pattern = scoreGuess(room.battle.secret, g);
+      player.guesses.push({ guess: g, pattern });
 
-  let endNow = false;
+      let endNow = false;
 
-  if (g === room.battle.secret) {
-    room.battle.winner = socket.id;
-    room.battle.started = false;
-    room.battle.reveal = room.battle.secret;
-    endNow = true;
+      if (g === room.battle.secret) {
+        room.battle.winner = socket.id;
+        room.battle.started = false;
+        // Keep the secret available for display, don't clear it
+        endNow = true;
 
-    // mark others done
-    Object.keys(room.players).forEach((pid) => {
-      if (pid !== socket.id) room.players[pid].done = true;
-    });
+        // mark others done
+        Object.keys(room.players).forEach((pid) => {
+          if (pid !== socket.id) room.players[pid].done = true;
+        });
 
-    if (!room.roundClosed) {
-      updateStatsOnWin(room, socket.id);
-      room.roundClosed = true;
+        if (!room.roundClosed) {
+          updateStatsOnWin(room, socket.id);
+          room.roundClosed = true;
+        }
+      } else if (player.guesses.length >= 6) {
+        player.done = true;
+
+        // if all non-host players are done and no winner, end and reveal
+        const nonHostIds = Object.keys(room.players).filter(
+          (pid) => pid !== room.hostId
+        );
+        const allDone = nonHostIds.every((pid) => room.players[pid].done);
+
+        if (allDone && !room.battle.winner) {
+          room.battle.started = false;
+          // Keep the secret available for display, don't clear it
+          endNow = true;
+          // No winner -> no stats update
+          room.roundClosed = true;
+        }
+      }
+
+      if (endNow) {
+        io.to(roomId).emit("roomState", sanitizeRoom(room));
+        return cb?.({ ok: true, pattern });
+      }
+
+      io.to(roomId).emit("roomState", sanitizeRoom(room));
+      return cb?.({ ok: true, pattern });
     }
-  } else if (player.guesses.length >= 6) {
-    player.done = true;
-
-    // if all non-host players are done and no winner, end and reveal
-    const nonHostIds = Object.keys(room.players).filter((pid) => pid !== room.hostId);
-    const allDone = nonHostIds.every((pid) => room.players[pid].done);
-
-    if (allDone && !room.battle.winner) {
-      room.battle.started = false;
-      room.battle.reveal = room.battle.secret;
-      endNow = true;
-      // No winner -> no stats update
-      room.roundClosed = true;
-    }
-  }
-
-  if (endNow) {
-    io.to(roomId).emit("roomState", sanitizeRoom(room));
-    return cb?.({ ok: true, pattern });
-  }
-
-  io.to(roomId).emit("roomState", sanitizeRoom(room));
-  return cb?.({ ok: true, pattern });
-}
   });
 
   // ----- BATTLE HOST CONTROLS -----
@@ -389,6 +388,11 @@ if (room.mode === "battle") {
     if (socket.id !== room.hostId)
       return cb?.({ error: "Only host can set word" });
     if (!isValidWordLocal(secret)) return cb?.({ error: "Invalid word" });
+
+    // Store the old secret as the revealed word before setting the new one
+    if (room.battle.secret && !room.battle.revealedWord) {
+      room.battle.revealedWord = room.battle.secret;
+    }
 
     room.battle.secret = secret.toUpperCase();
     Object.values(room.players).forEach((p) => {
@@ -403,25 +407,28 @@ if (room.mode === "battle") {
     const room = rooms.get(roomId);
     if (!room) return cb?.({ error: "Room not found" });
     if (room.mode !== "battle") return cb?.({ error: "Wrong mode" });
-    if (socket.id !== room.hostId) return cb?.({ error: "Only host can start" });
+    if (socket.id !== room.hostId)
+      return cb?.({ error: "Only host can start" });
     if (!room.battle.secret) return cb?.({ error: "Set a word first" });
-    if (Object.keys(room.players).length < 2) return cb?.({ error: "Need at least 2 players" });
-  
+    if (Object.keys(room.players).length < 2)
+      return cb?.({ error: "Need at least 2 players" });
+
     room.battle.started = true;
     room.battle.winner = null;
     room.battle.reveal = null;
     room.roundClosed = false;
-  
+
     io.to(roomId).emit("roomState", sanitizeRoom(room));
     cb?.({ ok: true });
   });
-  
+
   socket.on("playAgain", ({ roomId }, cb) => {
     const room = rooms.get(roomId);
     if (!room) return cb?.({ error: "Room not found" });
     if (room.mode !== "battle") return cb?.({ error: "Wrong mode" });
-    if (socket.id !== room.hostId) return cb?.({ error: "Only host can reset" });
-  
+    if (socket.id !== room.hostId)
+      return cb?.({ error: "Only host can reset" });
+
     Object.values(room.players).forEach((p) => {
       p.guesses = [];
       p.done = false;
@@ -429,13 +436,14 @@ if (room.mode === "battle") {
     room.battle.started = false;
     room.battle.winner = null;
     room.battle.reveal = null;
-    room.battle.secret = null; // require new word
+    room.battle.revealedWord = null; // Clear the revealed word for new round
+    // Don't clear the secret immediately - keep it for display until new word is set
+    // room.battle.secret = null; // require new word
     room.roundClosed = false;
-  
+
     io.to(roomId).emit("roomState", sanitizeRoom(room));
     cb?.({ ok: true });
   });
-
 });
 
 // ---------- Helpers ----------
@@ -457,9 +465,11 @@ function computeDuelWinner(room) {
     else if (!aSolved && bSolved) winner = b;
     else if ((A.done && B.done) || (aSolved && bSolved)) {
       const aSteps =
-        A.guesses.findIndex((g) => g.guess === room.players[b].secret) + 1 || 999;
+        A.guesses.findIndex((g) => g.guess === room.players[b].secret) + 1 ||
+        999;
       const bSteps =
-        B.guesses.findIndex((g) => g.guess === room.players[a].secret) + 1 || 999;
+        B.guesses.findIndex((g) => g.guess === room.players[a].secret) + 1 ||
+        999;
       if (aSteps < bSteps) winner = a;
       else if (bSteps < aSteps) winner = b;
       else winner = "draw";
@@ -471,7 +481,8 @@ function computeDuelWinner(room) {
     const ids = Object.keys(room.players);
     if (ids.length === 2) {
       const [a, b] = ids;
-      const A = room.players[a], B = room.players[b];
+      const A = room.players[a],
+        B = room.players[b];
       if (winner !== "draw") {
         const loser = winner === a ? b : a;
         room.players[winner].wins = (room.players[winner].wins || 0) + 1;
@@ -479,7 +490,8 @@ function computeDuelWinner(room) {
         room.players[loser].streak = 0;
       } else {
         // draw: reset both streaks? choose your rule; here we reset both
-        A.streak = 0; B.streak = 0;
+        A.streak = 0;
+        B.streak = 0;
       }
       room.duelReveal = { [a]: A.secret, [b]: B.secret };
       room.started = false;
@@ -488,9 +500,21 @@ function computeDuelWinner(room) {
 }
 
 function sanitizeRoom(room) {
+  // Debug logging
+  console.log("sanitizeRoom - room.battle.secret:", room.battle?.secret);
+  console.log("sanitizeRoom - room.battle:", room.battle);
+
   const players = Object.fromEntries(
     Object.entries(room.players).map(([id, p]) => {
-      const { name, ready, guesses, done, wins = 0, streak = 0, disconnected = false } = p;
+      const {
+        name,
+        ready,
+        guesses,
+        done,
+        wins = 0,
+        streak = 0,
+        disconnected = false,
+      } = p;
       return [id, { name, ready, guesses, done, wins, streak, disconnected }];
     })
   );
@@ -507,6 +531,8 @@ function sanitizeRoom(room) {
       winner: room.battle.winner,
       reveal: room.battle.reveal,
       hasSecret: !!room.battle.secret,
+      secret: room.battle.secret, // Always show the secret (it's the word being guessed)
+      revealedWord: room.battle.revealedWord, // The word that was just guessed (for display)
     },
   };
 }
