@@ -1,9 +1,14 @@
 // client/src/api.js
 export async function validateWord(word) {
+  // Ensure word is a valid string
+  if (!word || typeof word !== "string") {
+    return { valid: false, error: "Invalid word format" };
+  }
+
   const baseUrl =
     process.env.NODE_ENV === "development"
-      ? "https://amusing-endurance-production.up.railway.app" // Use hosted backend for local testing
-      : "https://amusing-endurance-production.up.railway.app"; // Adjust for Vercel if needed later
+      ? "http://localhost:8080" // Local development backend
+      : "https://amusing-endurance-production.up.railway.app"; // Production backend
 
   const response = await fetch(
     `${baseUrl}/api/validate?word=${word.toLowerCase()}`,
