@@ -904,6 +904,7 @@ export default function App() {
   );
 } // End of App component
 
+// PlayerCard component just added
 // PlayersList component
 function PlayersList({
   players,
