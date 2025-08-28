@@ -20,7 +20,6 @@ function WordInputTiles({
       setLetters(newLetters);
       setCurrentIndex(currentIndex + 1);
       setError("");
-      console.log("Letter input:", letter, "New letters array:", newLetters);
     }
   };
 
@@ -60,14 +59,6 @@ function WordInputTiles({
     const word = letters
       .filter((letter) => letter && letter.trim() !== "")
       .join("");
-    console.log(
-      "Submitting word:",
-      word,
-      "Length:",
-      word.length,
-      "Letters array:",
-      letters
-    );
 
     if (word.length !== 5) {
       setError("Word must be 5 letters");
@@ -79,7 +70,6 @@ function WordInputTiles({
 
     try {
       const result = await validateWord(word);
-      console.log("Validation result:", result);
       if (result.valid) {
         onWordSubmit(word);
         // Reset after successful submission
