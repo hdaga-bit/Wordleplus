@@ -233,7 +233,7 @@ export default function App() {
       if (room?.mode === "duel") handleDuelKey(key);
       if (room?.mode === "battle") {
         // Hosts type the secret word; don't capture their keys here.
-        if (isHost) return;
+        if (isHost && !room?.battle?.started) return;
         handleBattleKey(key);
       }
     };
