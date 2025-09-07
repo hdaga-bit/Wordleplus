@@ -4,7 +4,6 @@ import { cn } from "./lib/utils.js";
 
 // Extracted Components
 import HomeScreen from "./screens/HomeScreen.jsx";
-import LobbyScreen from "./screens/LobbyScreen.jsx";
 import DuelGameScreen from "./screens/DuelGameScreen.jsx";
 import BattleGameScreen from "./screens/BattleGameScreen.jsx";
 import HostSpectateScreen from "./screens/HostSpectateScreen.jsx";
@@ -35,9 +34,6 @@ export default function App() {
     localStorage.getItem(LS_LAST_MODE) || "duel"
   );
 
-  // Duel
-  const [secret, setSecret] = useState("");
-
   // Battle
   const [hostWord, setHostWord] = useState("");
 
@@ -46,7 +42,12 @@ export default function App() {
   const [showActiveError, setShowActiveError] = useState(false);
   const [currentGuess, setCurrentGuess] = useState("");
   const [showVictory, setShowVictory] = useState(false);
+  const wasHost =
+    (typeof window !== "undefined" &&
+      localStorage.getItem("wp.lastSocketId.wasHost") === "true") ||
+    false;
 
+  // consider yourself host if server says so OR you were host moments ago
   // Room state management
   const [room, setRoom] = useState(null);
 
@@ -59,6 +60,12 @@ export default function App() {
   }, [room]);
   useEffect(() => {
     const onState = (data) => {
+      console.info("roomState", {
+        started: data.started,
+        duelDeadline: data.duelDeadline,
+        now: Date.now(),
+        in: data.duelDeadline ? data.duelDeadline - Date.now() : null,
+      });
       setRoom(data);
     };
     socket.on("roomState", onState);
@@ -118,10 +125,9 @@ export default function App() {
     }
 
     if (room.mode === "battle") {
-      // Only show victory for battle mode if there's a winner or reveal, AND the game has actually started
-      const shouldShow =
-        room.battle?.started && (room.battle?.winner || room.battle?.reveal);
-      setShowVictory(shouldShow);
+      // For battle mode, don't show victory modal - let host directly start new rounds
+      // The game results are shown in the HostSpectateScreen instead
+      setShowVictory(false);
     }
   }, [
     room?.mode,
@@ -146,9 +152,8 @@ export default function App() {
       setRoomId(result.roomId);
       setCurrentGuess("");
       setShowVictory(false);
-      // For battle mode, go directly to game screen (host spectate view)
-      // For duel mode, go to lobby
-      setScreen(mode === "battle" ? "game" : "lobby");
+      // For both modes, go directly to game screen
+      setScreen("game");
     } else {
       setMsg(result?.error || "Failed to create room");
     }
@@ -161,23 +166,28 @@ export default function App() {
     } else {
       setCurrentGuess("");
       setShowVictory(false);
-      // For battle mode, go directly to game screen (player view)
-      // For duel mode, go to lobby
-      setScreen(mode === "battle" ? "game" : "lobby");
+      // For both modes, go directly to game screen
+      setScreen("game");
     }
+  }
+
+  function bumpActiveRowError() {
+    setShowActiveError(true);
+    setShakeKey((k) => k + 1);
+    // turn it back off so the next error can retrigger
+    setTimeout(() => setShowActiveError(false), 300);
   }
 
   async function handleSubmitDuelGuess() {
     if (!canGuessDuel) return;
     if (currentGuess.length !== 5) {
-      setShowActiveError(true);
-      setShakeKey((k) => k + 1);
+      bumpActiveRowError();
+
       return;
     }
     const v = await submitDuelGuess(roomId, currentGuess, canGuessDuel);
     if (v?.error) {
-      setShowActiveError(true);
-      setShakeKey((k) => k + 1);
+      bumpActiveRowError();
       return;
     }
     setCurrentGuess("");
@@ -221,13 +231,15 @@ export default function App() {
           : null;
       if (!key) return;
       if (room?.mode === "duel") handleDuelKey(key);
-      if (room?.mode === "battle") handleBattleKey(key);
+      if (room?.mode === "battle") {
+        // Hosts type the secret word; don't capture their keys here.
+        if (isHost) return;
+        handleBattleKey(key);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [room?.mode, canGuessDuel, canGuessBattle, currentGuess]);
-
-  // screen transitions
+  }, [room?.mode, isHost, canGuessDuel, canGuessBattle, currentGuess]); // screen transitions
   useEffect(() => {
     if (room?.mode === "duel" && room?.started) {
       setScreen("game");
@@ -245,6 +257,14 @@ export default function App() {
     room?.mode,
   ]);
 
+  const viewingHost =
+    room?.mode === "battle" && (isHost || (wasHost && me?.id === room?.hostId));
+  useEffect(() => {
+    if (room?.mode === "battle") {
+      localStorage.setItem("wp.lastSocketId.wasHost", String(isHost));
+    }
+  }, [room?.mode, isHost]);
+
   return (
     <>
       {/* Game screens break out of main container - Full viewport */}
@@ -260,6 +280,7 @@ export default function App() {
           {/* DUEL GAME */}
           {room?.mode === "duel" && (
             <DuelGameScreen
+              room={room}
               me={me}
               opponent={opponent}
               currentGuess={currentGuess}
@@ -267,60 +288,69 @@ export default function App() {
               showActiveError={showActiveError}
               letterStates={letterStates}
               onKeyPress={handleDuelKey}
+              onSubmitSecret={async (secret) => {
+                const result = await submitSecret(roomId, secret); // { ok: true } or { error: "..." }
+                if (result?.error) setMsg(result.error);
+                return result;
+              }}
+              onRematch={async () => {
+                // Use the action helper that emits the correct payload shape { roomId }
+                try {
+                  await duelPlayAgain(roomId);
+                } catch (e) {
+                  // no-op; UI will still update via roomState events
+                }
+              }}
             />
           )}
 
           {/* BATTLE ROYALE - Host sees spectate view, players see game view */}
-          {room?.mode === "battle" && (
-            <>
-              {isHost ? (
-                <HostSpectateScreen
-                  room={room}
-                  players={allPlayers}
-                  onWordSubmit={async (word) => {
-                    // Set the word in state and start the game immediately
-                    setHostWord(word);
-                    const result = await setWordAndStart(roomId, word);
-                    if (result?.error) {
-                      setMsg(result.error);
-                    }
-                  }}
-                  onCopyRoomId={() => {
-                    navigator.clipboard.writeText(room?.id || "");
-                    setMsg("Room ID copied to clipboard!");
-                  }}
-                />
-              ) : (
-                <BattleGameScreen
-                  room={room}
-                  players={players}
-                  allPlayers={allPlayers}
-                  otherPlayers={otherPlayers}
-                  me={me}
-                  isHost={isHost}
-                  currentGuess={currentGuess}
-                  shakeKey={shakeKey}
-                  showActiveError={showActiveError}
-                  letterStates={letterStates}
-                  canGuessBattle={canGuessBattle}
-                  onKeyPress={handleBattleKey}
-                />
-              )}
-            </>
-          )}
+          {room?.mode === "battle" &&
+            (viewingHost ? (
+              <HostSpectateScreen
+                key="host"
+                room={room}
+                players={players}
+                onWordSubmit={async (word) => {
+                  const resp = await setWordAndStart(room?.id, word);
+                  if (resp?.error) setMsg(resp.error);
+                }}
+                onCopyRoomId={() =>
+                  navigator.clipboard.writeText(room?.id || "")
+                }
+              />
+            ) : (
+              <BattleGameScreen
+                key="player" // force a full swap
+                room={room}
+                players={players}
+                allPlayers={allPlayers}
+                otherPlayers={otherPlayers}
+                me={me}
+                isHost={isHost}
+                currentGuess={currentGuess}
+                shakeKey={shakeKey}
+                showActiveError={showActiveError}
+                letterStates={letterStates}
+                canGuessBattle={canGuessBattle}
+                onKeyPress={handleBattleKey}
+              />
+            ))}
         </>
       )}
 
       {/* Main app container for home/lobby screens - Constrained width */}
       {screen !== "game" && (
         <div className="max-w-7xl mx-auto p-4 font-sans">
-          <ConnectionBar
-            connected={connected}
-            canRejoin={canRejoin}
-            onRejoin={doRejoin}
-            savedRoomId={savedRoomId}
-          />
-
+          {" "}
+          {!viewingHost && (
+            <ConnectionBar
+              connected={connected}
+              canRejoin={canRejoin}
+              onRejoin={doRejoin}
+              savedRoomId={savedRoomId}
+            />
+          )}
           {/* Title links "home" */}
           <button
             onClick={() => {
@@ -336,7 +366,6 @@ export default function App() {
           >
             Friendle Clone
           </button>
-
           {screen === "home" && (
             <HomeScreen
               name={name}
@@ -350,42 +379,14 @@ export default function App() {
               message={msg}
             />
           )}
-
-          {screen === "lobby" && (
-            <LobbyScreen
-              roomId={roomId}
-              room={room}
-              players={allPlayers}
-              isHost={isHost}
-              secret={secret}
-              setSecret={setSecret}
-              hostWord={hostWord}
-              setHostWord={setHostWord}
-              onSubmitSecret={async (secret) => {
-                const result = await submitSecret(roomId, secret);
-                if (result?.error) setMsg(result.error);
-              }}
-              onSetWordAndStart={async (word) => {
-                const result = await setWordAndStart(roomId, word);
-                if (result?.error) setMsg(result.error);
-              }}
-              message={msg}
-            />
-          )}
-
-          {/* Victory Modal */}
-          {showVictory && (
+          {/* Victory Modal - Only for battle mode now */}
+          {showVictory && room?.mode === "battle" && (
             <VictoryModal
               winner={winner}
               onClose={() => setShowVictory(false)}
               onPlayAgain={() => {
                 setShowVictory(false);
-                if (room?.mode === "duel") {
-                  socket.emit("duelPlayAgain", roomId);
-                } else if (room?.mode === "battle") {
-                  // For battle mode, just close the modal and let host enter new word
-                  setShowVictory(false);
-                }
+                // For battle mode, just close the modal and let host enter new word
               }}
             />
           )}
