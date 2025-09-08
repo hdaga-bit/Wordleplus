@@ -65,7 +65,7 @@ export default function SecretWordInputRow({
           return;
         }
       } catch (err) {
-        console.error(err);
+        // Error occurred
         setError("Validation failed");
         return;
       } finally {
@@ -89,7 +89,7 @@ export default function SecretWordInputRow({
       inputRef.current?.focus();
       // …but DO NOT auto-submit. User presses Enter to accept.
     } catch (e) {
-      console.error(e);
+      // Error occurred
       setError("Failed to generate word");
     }
   }

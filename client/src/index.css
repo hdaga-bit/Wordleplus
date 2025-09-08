@@ -294,50 +294,5 @@
   color: hsl(var(--destructive)) !important;
 }
 
-/* Cross-fade transitions */
-.fade-enter {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.fade-enter-active {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
-}
-
-.fade-exit {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.fade-exit-active {
-  opacity: 0;
-  transform: translateY(-10px);
-  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
-}
-
-/* Round to results transition */
-.round-to-results-enter {
-  opacity: 0;
-  transform: scale(0.95);
-}
-
-.round-to-results-enter-active {
-  opacity: 1;
-  transform: scale(1);
-  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
-}
-
-.round-to-results-exit {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.round-to-results-exit-active {
-  opacity: 0;
-  transform: scale(1.05);
-  transition: opacity 0.4s ease-in, transform 0.4s ease-in;
-}
 
 

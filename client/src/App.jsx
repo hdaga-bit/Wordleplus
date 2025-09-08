@@ -62,12 +62,7 @@ export default function App() {
   }, [room]);
   useEffect(() => {
     const onState = (data) => {
-      console.info("roomState", {
-        started: data.started,
-        duelDeadline: data.duelDeadline,
-        now: Date.now(),
-        in: data.duelDeadline ? data.duelDeadline - Date.now() : null,
-      });
+      // Room state updated
       setRoom(data);
     };
     socket.on("roomState", onState);

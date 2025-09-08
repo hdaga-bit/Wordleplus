@@ -96,7 +96,7 @@ export default function SecretWordInput({
           return;
         }
       } catch (err) {
-        console.error(err);
+        // Error occurred
         setError("Validation failed");
         return;
       } finally {

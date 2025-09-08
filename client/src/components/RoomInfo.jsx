@@ -12,7 +12,7 @@ function RoomInfo({ roomId, room, isHost, onCopyRoomId }) {
       onCopyRoomId?.();
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error("Failed to copy room ID:", err);
+      // Failed to copy room ID
     }
   };
 

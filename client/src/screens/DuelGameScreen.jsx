@@ -211,7 +211,7 @@ function DuelGameScreen({
         // NOTE: still requires Enter to lock in (per your flow)
       }
     } catch (e) {
-      console.error(e);
+      // Error occurred
     } finally {
       setGenBusy(false);
     }
@@ -488,7 +488,7 @@ function DuelGameScreen({
           <div className="mx-auto mt-2 w-full max-w-xl h-1.5 rounded bg-slate-200 overflow-hidden">
             <div
               className={[
-                "h-full transition-[width] duration-250",
+                "h-full",
                 low ? "bg-red-500" : warn ? "bg-amber-500" : "bg-emerald-500",
               ].join(" ")}
               style={{ width: `${pct ?? 100}%` }}
@@ -782,7 +782,7 @@ function DuelGameScreen({
           <Button
             onClick={handleRematch}
             disabled={hasRequestedRematch}
-            className="w-12 h-12 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 bg-emerald-600 hover:bg-emerald-700"
+            className="w-12 h-12 rounded-full shadow-lg hover:shadow-xl bg-emerald-600 hover:bg-emerald-700"
             title={
               hasRequestedRematch
                 ? "Waiting for opponent..."
