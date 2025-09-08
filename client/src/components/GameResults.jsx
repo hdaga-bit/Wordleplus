@@ -1,499 +1,905 @@
-import React from "react";
+// import React from "react";
 
-function GameResults({ room, players, correctWord }) {
-  // Debug logging to understand the data structure
-  console.log("GameResults Debug:", {
-    room: room,
-    players: players,
-    correctWord: correctWord,
-    winner: players.find((p) => p.done && p.guesses?.length <= 6),
-    winnerGuesses: players.find((p) => p.done && p.guesses?.length <= 6)
-      ?.guesses,
-  });
+// function GameResults({ room, players, correctWord }) {
+//   // CRITICAL: Props validation to prevent crashes
+//   if (!room || !players || !Array.isArray(players)) {
+//     console.warn("GameResults: Invalid props received", {
+//       room,
+//       players,
+//       correctWord,
+//     });
+//     return (
+//       <div className="w-full max-w-4xl mx-auto space-y-6 text-center">
+//         <div className="text-red-500">
+//           <h2 className="text-2xl font-bold">Error Loading Game Results</h2>
+//           <p className="text-sm">
+//             Unable to display results due to invalid data.
+//           </p>
+//         </div>
+//       </div>
+//     );
+//   }
 
-  // Filter out the host from the leaderboard (host doesn't play)
-  const nonHostPlayers = players.filter((player) => player.id !== room?.hostId);
+//   // SAFE: Filter out the host from the leaderboard (host doesn't play)
+//   const nonHostPlayers = players.filter(
+//     (player) => player && player.id && player.id !== room?.hostId
+//   );
 
-  // Sort players by wins (descending), then by current streak (descending)
-  const sortedPlayers = [...nonHostPlayers].sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    return (b.streak || 0) - (a.streak || 0);
-  });
+//   // SAFE: Sort players by wins (descending), then by current streak (descending)
+//   const sortedPlayers = [...nonHostPlayers].sort((a, b) => {
+//     if (!a || !b) return 0; // Safe fallback
+//     const aWins = a.wins || 0;
+//     const bWins = b.wins || 0;
+//     const aStreak = a.streak || 0;
+//     const bStreak = b.streak || 0;
 
-  const getStreakColor = (streak) => {
-    if (streak >= 10) return "text-orange-600"; // Orange fire for high streaks
-    if (streak >= 5) return "text-red-500"; // Red fire for medium streaks
-    if (streak >= 3) return "text-yellow-500"; // Yellow fire for low streaks
-    return "text-gray-400"; // Gray for no streak
-  };
+//     if (bWins !== aWins) return bWins - aWins;
+//     return bStreak - aStreak;
+//   });
 
-  const getStreakIcon = (streak) => {
-    if (streak >= 10) return "🔥"; // Hot fire for high streaks
-    if (streak >= 5) return "🔥"; // Regular fire for medium streaks
-    if (streak >= 3) return "🔥"; // Small fire for low streaks
-    return "✨"; // Sparkle for no streak
-  };
+//   const getStreakColor = (streak) => {
+//     if (!streak || typeof streak !== "number") return "text-gray-400";
+//     if (streak >= 10) return "text-orange-600"; // Orange fire for high streaks
+//     if (streak >= 5) return "text-red-500"; // Red fire for medium streaks
+//     if (streak >= 3) return "text-yellow-500"; // Yellow fire for low streaks
+//     return "text-gray-400"; // Gray for no streak
+//   };
 
-  // Fun competitive taglines based on performance
-  const getPlayerTagline = (player) => {
-    const guesses = player.guesses?.length || 0;
-    const isWinner = player.done && guesses <= 6;
+//   const getStreakIcon = (streak) => {
+//     if (!streak || typeof streak !== "number") return "✨";
+//     if (streak >= 10) return "🔥"; // Hot fire for high streaks
+//     if (streak >= 5) return "🔥"; // Regular fire for medium streaks
+//     if (streak >= 3) return "🔥"; // Small fire for low streaks
+//     return "✨"; // Sparkle for no streak
+//   };
 
-    if (!isWinner) {
-      // Didn't get the word
-      if (guesses === 0) return "🎭 Ghost Player - Never showed up!";
-      if (guesses === 1) return "💨 One and Done - Commitment issues much?";
-      if (guesses === 2) return "🤷‍♂️ Two Tries - At least you tried... sort of";
-      if (guesses === 3) return "😴 Three Strikes - Wake up call needed!";
-      if (guesses === 4)
-        return "🤔 Four Attempts - Getting warmer... not really";
-      if (guesses === 5) return "😤 Five Fumbles - So close, yet so far!";
-      if (guesses === 6)
-        return "💀 Six Strikes - You're out! Better luck next time!";
-    } else {
-      // Got the word - performance based
-      if (guesses === 1)
-        return "🚨 CHEATER ALERT! - Did you peek at the answer?";
-      if (guesses === 2)
-        return "🎯 Mind Reader - Are you psychic or just lucky?";
-      if (guesses === 3) return "⚡ Speed Demon - Lightning fast!";
-      if (guesses === 4) return "🎪 Show Off - Making it look easy!";
-      if (guesses === 5) return "😅 Close Call - Cut it a bit close there!";
-      if (guesses === 6) return "🎭 Drama Queen - Last second heroics!";
-    }
+//   // Fun competitive taglines based on performance
+//   const getPlayerTagline = (player) => {
+//     if (!player || !player.guesses) return "🎮 Player";
 
-    return "🎮 Player"; // Default fallback
-  };
+//     const guesses = player.guesses.length || 0;
+//     const isWinner = player.done && guesses <= 6;
 
-  // Enhanced taglines with pattern analysis for extra banter
-  const getEnhancedTagline = (player) => {
-    const baseTagline = getPlayerTagline(player);
-    const guesses = player.guesses || [];
+//     if (!isWinner) {
+//       // Didn't get the word - these should be ridiculing
+//       if (guesses === 0) return "🎭 Ghost Player - Never showed up!";
+//       if (guesses === 1) return "💨 One and Done - Did you even try? Pathetic!";
+//       if (guesses === 2) return "🤷‍♂️ Two Tries - At least you tried... sort of";
+//       if (guesses === 3) return "😴 Three Strikes - Wake up call needed!";
+//       if (guesses === 4)
+//         return "🤔 Four Attempts - Getting warmer... not really";
+//       if (guesses === 5) return "😤 Five Fumbles - So close, yet so far!";
+//       if (guesses === 6)
+//         return "💀 Six Strikes - You're out! Better luck next time!";
+//     } else {
+//       // Got the word - performance based (these are positive)
+//       if (guesses === 1)
+//         return "🚨 CHEATER ALERT! - Did you peek at the answer?";
+//       if (guesses === 2)
+//         return "🎯 Mind Reader - Are you psychic or just lucky?";
+//       if (guesses === 3) return "⚡ Speed Demon - Lightning fast!";
+//       if (guesses === 4) return "🎪 Show Off - Making it look easy!";
+//       if (guesses === 5) return "😅 Close Call - Cut it a bit close there!";
+//       if (guesses === 6) return "🎭 Drama Queen - Last second heroics!";
+//     }
 
-    // Check for complete misses (no green/yellow tiles)
-    const hasAnyHits = guesses.some((guess) =>
-      guess.pattern?.some(
-        (result) =>
-          result === "green" ||
-          result === "yellow" ||
-          result === "correct" ||
-          result === "present"
-      )
-    );
+//     return "🎮 Player"; // Default fallback
+//   };
 
-    if (!hasAnyHits && guesses.length > 0) {
-      // Player got absolutely nothing right - extra banter
-      if (guesses.length === 1) return "🎯 Blindfolded - Not even close!";
-      if (guesses.length === 2)
-        return "🌫️ Lost in the Fog - Can't see a thing!";
-      if (guesses.length === 3) return "🕳️ Bottomless Pit - Falling deeper!";
-      if (guesses.length === 4) return "🚫 Zero Hero - Master of missing!";
-      if (guesses.length === 5)
-        return "💸 Money Down the Drain - Nothing to show!";
-      if (guesses.length === 6)
-        return "🏴‍☠️ Captain Clueless - Sailed the wrong way!";
-    }
+//   // Enhanced taglines with pattern analysis for extra banter
+//   const getEnhancedTagline = (player) => {
+//     if (!player) return "🎮 Player";
 
-    // Check for mostly misses
-    const totalTiles = guesses.length * 5;
-    const hitTiles = guesses.reduce(
-      (count, guess) =>
-        count +
-        (guess.pattern?.filter(
-          (result) =>
-            result === "green" ||
-            result === "yellow" ||
-            result === "correct" ||
-            result === "present"
-        ).length || 0),
-      0
-    );
+//     const baseTagline = getPlayerTagline(player);
+//     const guesses = player.guesses || [];
 
-    if (totalTiles > 0 && hitTiles / totalTiles < 0.2) {
-      return `${baseTagline} 🎲 Lucky to hit anything!`;
-    }
+//     // Check for complete misses (no green/yellow tiles)
+//     const hasAnyHits = guesses.some(
+//       (guess) =>
+//         guess &&
+//         guess.pattern &&
+//         Array.isArray(guess.pattern) &&
+//         guess.pattern.some(
+//           (result) =>
+//             result === "green" ||
+//             result === "yellow" ||
+//             result === "correct" ||
+//             result === "present"
+//         )
+//     );
 
-    return baseTagline;
-  };
+//     if (!hasAnyHits && guesses.length > 0) {
+//       // Player got absolutely nothing right - extra banter
+//       if (guesses.length === 1)
+//         return "🎯 Blindfolded - One guess and you're done? What a quitter!";
+//       if (guesses.length === 2)
+//         return "🌫️ Lost in the Fog - Can't see a thing!";
+//       if (guesses.length === 3) return "🕳️ Bottomless Pit - Falling deeper!";
+//       if (guesses.length === 4) return "🚫 Zero Hero - Master of missing!";
+//       if (guesses.length === 5)
+//         return "💸 Money Down the Drain - Nothing to show!";
+//       if (guesses.length === 6)
+//         return "🏴‍☠️ Captain Clueless - Sailed the wrong way!";
+//     }
 
-  // Get tagline color based on performance
-  const getTaglineColor = (player) => {
-    const guesses = player.guesses?.length || 0;
-    const isWinner = player.done && guesses <= 6;
+//     // Check for mostly misses
+//     const totalTiles = guesses.length * 5;
+//     const hitTiles = guesses.reduce((count, guess) => {
+//       if (!guess || !guess.pattern || !Array.isArray(guess.pattern))
+//         return count;
+//       return (
+//         count +
+//         (guess.pattern.filter(
+//           (result) =>
+//             result === "green" ||
+//             result === "yellow" ||
+//             result === "correct" ||
+//             result === "present"
+//         ).length || 0)
+//       );
+//     }, 0);
 
-    if (!isWinner) {
-      if (guesses === 0) return "text-gray-500";
-      if (guesses <= 2) return "text-red-500";
-      if (guesses <= 4) return "text-orange-500";
-      return "text-yellow-600";
-    } else {
-      if (guesses === 1) return "text-purple-600 font-bold";
-      if (guesses === 2) return "text-blue-600 font-bold";
-      if (guesses === 3) return "text-green-600 font-bold";
-      if (guesses === 4) return "text-emerald-600";
-      if (guesses === 5) return "text-teal-600";
-      return "text-cyan-600";
-    }
-  };
+//     if (totalTiles > 0 && hitTiles / totalTiles < 0.2) {
+//       return `${baseTagline} 🎲 Lucky to hit anything!`;
+//     }
+
+//     return baseTagline;
+//   };
+
+//   // Get tagline color based on performance
+//   const getTaglineColor = (player) => {
+//     if (!player || !player.guesses) return "text-gray-500";
+
+//     const guesses = player.guesses.length || 0;
+//     const isWinner = player.done && guesses <= 6;
+
+//     if (!isWinner) {
+//       if (guesses === 0) return "text-gray-500";
+//       if (guesses <= 2) return "text-red-500";
+//       if (guesses <= 4) return "text-orange-500";
+//       return "text-yellow-600";
+//     } else {
+//       if (guesses === 1) return "text-purple-600 font-bold";
+//       if (guesses === 2) return "text-blue-600 font-bold";
+//       if (guesses === 3) return "text-green-600 font-bold";
+//       if (guesses === 4) return "text-emerald-600";
+//       if (guesses === 5) return "text-teal-600";
+//       return "text-cyan-600";
+//     }
+//   };
+
+//   return (
+//     <div className="w-full max-w-4xl mx-auto space-y-6">
+//       {/* Game Results Header */}
+//       <div className="text-center space-y-4">
+//         <h2 className="text-2xl font-bold text-slate-800">Game Results</h2>
+
+//         {/* Correct Word Display */}
+//         <div className="space-y-2">
+//           <p className="text-sm text-slate-600">The word was:</p>
+//           <div className="flex justify-center">
+//             {(() => {
+//               // SAFE: Try to get the word from the winner's guesses
+//               // First, try to find someone who actually has a winning guess (all green tiles)
+//               const winner = players.find((p) => {
+//                 if (
+//                   !p ||
+//                   !p.guesses ||
+//                   !Array.isArray(p.guesses) ||
+//                   p.guesses.length === 0
+//                 )
+//                   return false;
+
+//                 // Check if they have a winning guess (all green tiles)
+//                 return p.guesses.some(
+//                   (guess) =>
+//                     guess &&
+//                     guess.pattern &&
+//                     Array.isArray(guess.pattern) &&
+//                     guess.pattern.every(
+//                       (result) =>
+//                         result === "green" ||
+//                         result === "correct" ||
+//                         result === "G" ||
+//                         result === "C"
+//                     )
+//                 );
+//               });
+
+//               // SAFE: If no winner with winning guess found, fall back to room.battle.winner
+//               if (!winner && room?.battle?.winner) {
+//                 const winnerId = room.battle.winner;
+//                 const winnerFromRoom = players.find(
+//                   (p) => p && p.id === winnerId
+//                 );
+//                 if (
+//                   winnerFromRoom &&
+//                   room?.battle?.reveal &&
+//                   typeof room.battle.reveal === "string"
+//                 ) {
+//                   return (
+//                     <div className="grid grid-cols-5 gap-2">
+//                       {room.battle.reveal.split("").map((letter, index) => (
+//                         <div
+//                           key={index}
+//                           className="w-12 h-12 bg-green-500 text-white rounded-md flex items-center justify-center text-xl font-bold shadow-md"
+//                         >
+//                           {letter.toUpperCase()}
+//                         </div>
+//                       ))}
+//                     </div>
+//                   );
+//                 }
+//               }
+
+//               if (
+//                 winner &&
+//                 winner.guesses &&
+//                 Array.isArray(winner.guesses) &&
+//                 winner.guesses.length > 0
+//               ) {
+//                 // SAFE: Find the winning guess (the one that matches the pattern)
+//                 // Try multiple pattern formats
+//                 const winningGuess = winner.guesses.find((guess) => {
+//                   if (!guess || !guess.pattern || !Array.isArray(guess.pattern))
+//                     return false;
+
+//                   // Check if all tiles are green/correct
+//                   return guess.pattern.every(
+//                     (result) =>
+//                       result === "green" ||
+//                       result === "correct" ||
+//                       result === "G" ||
+//                       result === "C"
+//                   );
+//                 });
+
+//                 if (
+//                   winningGuess &&
+//                   winningGuess.guess &&
+//                   typeof winningGuess.guess === "string"
+//                 ) {
+//                   return (
+//                     <div className="grid grid-cols-5 gap-2">
+//                       {winningGuess.guess.split("").map((letter, index) => (
+//                         <div
+//                           key={index}
+//                           className="w-12 h-12 bg-green-500 text-white rounded-md flex items-center justify-center text-xl font-bold shadow-md"
+//                         >
+//                           {letter.toUpperCase()}
+//                         </div>
+//                       ))}
+//                     </div>
+//                   );
+//                 }
+
+//                 // SAFE: If no perfect pattern found, try to find the last guess (most likely the winning one)
+//                 const lastGuess = winner.guesses[winner.guesses.length - 1];
+//                 if (
+//                   lastGuess &&
+//                   lastGuess.guess &&
+//                   typeof lastGuess.guess === "string"
+//                 ) {
+//                   return (
+//                     <div className="grid grid-cols-5 gap-2">
+//                       {lastGuess.guess.split("").map((letter, index) => (
+//                         <div
+//                           key={index}
+//                           className="w-12 h-12 bg-green-500 text-white rounded-md flex items-center justify-center text-xl font-bold shadow-md"
+//                         >
+//                           {letter.toUpperCase()}
+//                         </div>
+//                       ))}
+//                     </div>
+//                   );
+//                 }
+//               }
+
+//               // SAFE: Fallback: try to get from room.battle.reveal (this is where the word is stored!)
+//               if (
+//                 room?.battle?.reveal &&
+//                 typeof room.battle.reveal === "string"
+//               ) {
+//                 return (
+//                   <div className="grid grid-cols-5 gap-2">
+//                     {room.battle.reveal.split("").map((letter, index) => (
+//                       <div
+//                         key={index}
+//                         className="w-12 h-12 bg-green-500 text-white rounded-md flex items-center justify-center text-xl font-bold shadow-md"
+//                       >
+//                         {letter.toUpperCase()}
+//                       </div>
+//                     ))}
+//                   </div>
+//                 );
+//               }
+
+//               // SAFE: Fallback: try to get from room.battle.secret or revealedWord
+//               const wordToShow =
+//                 room?.battle?.revealedWord || room?.battle?.secret;
+//               if (wordToShow && typeof wordToShow === "string") {
+//                 return (
+//                   <div className="grid grid-cols-5 gap-2">
+//                     {wordToShow.split("").map((letter, index) => (
+//                       <div
+//                         key={index}
+//                         className="w-12 h-12 bg-green-500 text-white rounded-md flex items-center justify-center text-xl font-bold shadow-md"
+//                       >
+//                         {letter.toUpperCase()}
+//                       </div>
+//                     ))}
+//                   </div>
+//                 );
+//               }
+
+//               // SAFE: Last resort: try to find ANY player who got it right and extract their winning word
+//               const anyWinner = players.find(
+//                 (p) =>
+//                   p &&
+//                   p.done &&
+//                   p.guesses &&
+//                   Array.isArray(p.guesses) &&
+//                   p.guesses.length <= 6
+//               );
+//               if (
+//                 anyWinner &&
+//                 anyWinner.guesses &&
+//                 Array.isArray(anyWinner.guesses) &&
+//                 anyWinner.guesses.length > 0
+//               ) {
+//                 const lastGuess =
+//                   anyWinner.guesses[anyWinner.guesses.length - 1];
+//                 if (
+//                   lastGuess &&
+//                   lastGuess.guess &&
+//                   typeof lastGuess.guess === "string"
+//                 ) {
+//                   return (
+//                     <div className="grid grid-cols-5 gap-2">
+//                       {lastGuess.guess.split("").map((letter, index) => (
+//                         <div
+//                           key={index}
+//                           className="w-12 h-12 bg-green-500 text-white rounded-md flex items-center justify-center text-xl font-bold shadow-md"
+//                         >
+//                           {letter.toUpperCase()}
+//                         </div>
+//                       ))}
+//                     </div>
+//                   );
+//                 }
+//               }
+
+//               // SAFE: If still no word, show user-friendly message
+//               return (
+//                 <div className="text-red-500 text-sm">
+//                   <div>Word not available</div>
+//                 </div>
+//               );
+//             })()}
+//           </div>
+//         </div>
+
+//         {/* SAFE: Winner Celebration */}
+//         {(() => {
+//           // SAFE: Find the actual winner (someone with a winning guess)
+//           const actualWinner = players.find((p) => {
+//             if (
+//               !p ||
+//               !p.guesses ||
+//               !Array.isArray(p.guesses) ||
+//               p.guesses.length === 0
+//             )
+//               return false;
+//             return p.guesses.some(
+//               (guess) =>
+//                 guess &&
+//                 guess.pattern &&
+//                 Array.isArray(guess.pattern) &&
+//                 guess.pattern.every(
+//                   (result) =>
+//                     result === "green" ||
+//                     result === "correct" ||
+//                     result === "G" ||
+//                     result === "C"
+//                 )
+//             );
+//           });
+
+//           // SAFE: Fallback to room.battle.winner if no actual winner found
+//           const winner =
+//             actualWinner ||
+//             (room?.battle?.winner
+//               ? players.find((p) => p && p.id === room.battle.winner)
+//               : null);
+
+//           if (winner && winner.name) {
+//             const guesses = winner.guesses?.length || 0;
+//             return (
+//               <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+//                 <div className="flex flex-col items-center gap-2">
+//                   <div className="flex items-center gap-2">
+//                     <span className="text-2xl">🎉</span>
+//                     <span className="text-lg font-semibold text-green-800">
+//                       {winner.name} got it right!
+//                     </span>
+//                     <span className="text-2xl">🎉</span>
+//                   </div>
+//                   {/* Winner Tagline */}
+//                   <div className="text-sm text-green-700 font-medium">
+//                     {guesses === 1
+//                       ? "🚨 CHEATER ALERT! - Did you peek at the answer?"
+//                       : guesses === 2
+//                       ? "🎯 Mind Reader - Are you psychic or just lucky?"
+//                       : guesses === 3
+//                       ? "⚡ Speed Demon - Lightning fast!"
+//                       : guesses === 4
+//                       ? "🎪 Show Off - Making it look easy!"
+//                       : guesses === 5
+//                       ? "😅 Close Call - Cut it a bit close there!"
+//                       : guesses === 6
+//                       ? "🎭 Drama Queen - Last second heroics!"
+//                       : "🎮 Champion!"}
+//                   </div>
+//                 </div>
+//               </div>
+//             );
+//           }
+//           return null;
+//         })()}
+//       </div>
+
+//       {/* SAFE: Scoreboard */}
+//       <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
+//         <div className="px-6 py-4 border-b border-slate-200">
+//           <h3 className="text-lg font-semibold text-slate-800">Leaderboard</h3>
+//         </div>
+
+//         {/* Scrollable leaderboard container */}
+//         <div className="max-h-96 overflow-y-auto">
+//           <div className="divide-y divide-slate-100">
+//             {sortedPlayers.map((player, index) => {
+//               // SAFE: Validate player before rendering
+//               if (!player || !player.id || !player.name) return null;
+
+//               return (
+//                 <div
+//                   key={player.id}
+//                   className={`px-6 py-4 flex items-center gap-4 ${
+//                     index === 0
+//                       ? "bg-gradient-to-r from-yellow-50 to-amber-50"
+//                       : ""
+//                   }`}
+//                 >
+//                   {/* Rank */}
+//                   <div
+//                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+//                       index === 0
+//                         ? "bg-yellow-400 text-white"
+//                         : index === 1
+//                         ? "bg-slate-300 text-white"
+//                         : index === 2
+//                         ? "bg-amber-600 text-white"
+//                         : "bg-slate-100 text-slate-600"
+//                     }`}
+//                   >
+//                     {index + 1}
+//                   </div>
+
+//                   {/* Player Info */}
+//                   <div className="flex-1">
+//                     <div className="flex items-center gap-2">
+//                       <span className="font-medium text-slate-800">
+//                         {player.name}
+//                         {player.done &&
+//                           player.guesses &&
+//                           Array.isArray(player.guesses) &&
+//                           player.guesses.length <= 6 && (
+//                             <span className="ml-2 text-green-600 font-bold">
+//                               ✓
+//                             </span>
+//                           )}
+//                       </span>
+//                       {index === 0 && (
+//                         <span className="text-yellow-500 text-lg">👑</span>
+//                       )}
+//                     </div>
+//                     <div className="text-sm text-slate-500">
+//                       {player.guesses && Array.isArray(player.guesses)
+//                         ? player.guesses.length
+//                         : 0}
+//                       /6 guesses
+//                     </div>
+//                     {/* SAFE: Fun Competitive Tagline */}
+//                     <div className={`text-xs mt-1 ${getTaglineColor(player)}`}>
+//                       {getEnhancedTagline(player)}
+//                     </div>
+//                   </div>
+
+//                   {/* Stats */}
+//                   <div className="text-right space-y-1">
+//                     <div className="flex items-center gap-2">
+//                       <span className="text-sm text-slate-600">Wins:</span>
+//                       <span className="font-semibold text-slate-800">
+//                         {player.wins || 0}
+//                       </span>
+//                     </div>
+//                     <div className="flex items-center gap-2">
+//                       <span className="text-sm text-slate-600">Streak:</span>
+//                       <span
+//                         className={`font-semibold ${getStreakColor(
+//                           player.streak || 0
+//                         )}`}
+//                       >
+//                         {player.streak || 0}
+//                       </span>
+//                       <span
+//                         className={`text-lg ${getStreakColor(
+//                           player.streak || 0
+//                         )}`}
+//                       >
+//                         {getStreakIcon(player.streak || 0)}
+//                       </span>
+//                     </div>
+//                   </div>
+//                 </div>
+//               );
+//             })}
+//           </div>
+//         </div>
+//       </div>
+
+//       {/* SAFE: Waiting Message */}
+//       <div className="text-center text-slate-600">
+//         <p className="text-lg">Waiting for host to start the next round...</p>
+//         <p className="text-sm">Get ready for another challenge! 🚀</p>
+//         {/* SAFE: Fun Competitive Message */}
+//         <div className="mt-3 p-3 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
+//           <p className="text-xs text-purple-700 font-medium">
+//             💪 Ready to redeem yourself? Or will you continue the streak of...
+//             interesting choices?
+//             {(() => {
+//               // SAFE: Find worst player with validation
+//               const worstPlayer = sortedPlayers.find(
+//                 (p) =>
+//                   p &&
+//                   (!p.done ||
+//                     (p.guesses &&
+//                       Array.isArray(p.guesses) &&
+//                       p.guesses.length >= 6))
+//               );
+//               if (worstPlayer) {
+//                 const guesses =
+//                   worstPlayer.guesses && Array.isArray(worstPlayer.guesses)
+//                     ? worstPlayer.guesses.length
+//                     : 0;
+//                 if (guesses === 0)
+//                   return " Even the ghost players are embarrassed!";
+//                 if (guesses <= 2)
+//                   return " At least you're consistent... consistently wrong!";
+//                 if (guesses <= 4)
+//                   return " Maybe try reading the dictionary first?";
+//                 return " Time to step up your game!";
+//               }
+//               return " Let's see who's the real word wizard!";
+//             })()}
+//           </p>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
+
+// export default GameResults;
+// components/GameResults.jsx
+import React, { useMemo } from "react";
+import { Trophy } from "lucide-react";
+
+export default function GameResults({ room, players = [], correctWord }) {
+  const winnerId = room?.battle?.winner || null;
+  const roundFinished = !!winnerId || !!correctWord;
+
+  // Per-round stats from guesses vs. correctWord (exclude host)
+  const results = useMemo(() => {
+    const word = (correctWord || "").toUpperCase();
+    return players
+      .filter((p) => p && p.id && p.id !== room?.hostId) // Exclude host from leaderboard
+      .map((p) => {
+        const guesses = Array.isArray(p.guesses) ? p.guesses : [];
+        const ix =
+          word && guesses.length
+            ? guesses.findIndex((g) => (g?.guess || "").toUpperCase() === word)
+            : -1;
+        const steps = ix >= 0 ? ix + 1 : null;
+        return {
+          id: p.id,
+          name: p.name || "—",
+          guesses: guesses.length,
+          solved: steps !== null,
+          steps,
+          wins: p.wins ?? 0,
+          streak: p.streak ?? 0,
+          disconnected: !!p.disconnected,
+        };
+      });
+  }, [players, correctWord, room?.hostId]);
+
+  // Sort for podium / table
+  const sorted = useMemo(() => {
+    const copy = [...results];
+    copy.sort((a, b) => {
+      // winner always first if present
+      if (winnerId) {
+        if (a.id === winnerId && b.id !== winnerId) return -1;
+        if (b.id === winnerId && a.id !== winnerId) return 1;
+      }
+      // then solved first, fewest steps first
+      if (a.solved !== b.solved) return a.solved ? -1 : 1;
+      if (a.solved && b.solved) return a.steps - b.steps;
+      // both unsolved: fewer guesses used first
+      if (!a.solved && !b.solved) return a.guesses - b.guesses;
+      return a.name.localeCompare(b.name);
+    });
+    return copy;
+  }, [results, winnerId]);
+
+  const podium = sorted.slice(0, 3);
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6">
-      {/* Game Results Header */}
-      <div className="text-center space-y-4">
-        <h2 className="text-2xl font-bold text-slate-800">Game Results</h2>
-
-        {/* Correct Word Display */}
-        <div className="space-y-2">
-          <p className="text-sm text-slate-600">The word was:</p>
-          <div className="flex justify-center">
-            {(() => {
-              // Try to get the word from the winner's guesses
-              // First, try to find someone who actually has a winning guess (all green tiles)
-              const winner = players.find((p) => {
-                if (!p.guesses || p.guesses.length === 0) return false;
-
-                // Check if they have a winning guess (all green tiles)
-                return p.guesses.some(
-                  (guess) =>
-                    guess.pattern &&
-                    guess.pattern.every(
-                      (result) =>
-                        result === "green" ||
-                        result === "correct" ||
-                        result === "G" ||
-                        result === "C"
-                    )
-                );
-              });
-
-              // If no winner with winning guess found, fall back to room.battle.winner
-              if (!winner && room?.battle?.winner) {
-                const winnerId = room.battle.winner;
-                const winnerFromRoom = players.find((p) => p.id === winnerId);
-                if (winnerFromRoom && room?.battle?.reveal) {
-                  return (
-                    <div className="grid grid-cols-5 gap-2">
-                      {room.battle.reveal.split("").map((letter, index) => (
-                        <div
-                          key={index}
-                          className="w-12 h-12 bg-green-500 text-white rounded-md flex items-center justify-center text-xl font-bold shadow-md"
-                        >
-                          {letter.toUpperCase()}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-              }
-              if (winner && winner.guesses && winner.guesses.length > 0) {
-                // Find the winning guess (the one that matches the pattern)
-                // Try multiple pattern formats
-                const winningGuess = winner.guesses.find((guess) => {
-                  if (!guess.pattern) return false;
-
-                  // Check if all tiles are green/correct
-                  return guess.pattern.every(
-                    (result) =>
-                      result === "green" ||
-                      result === "correct" ||
-                      result === "G" ||
-                      result === "C"
-                  );
-                });
-
-                if (
-                  winningGuess &&
-                  winningGuess.guess &&
-                  typeof winningGuess.guess === "string"
-                ) {
-                  return (
-                    <div className="grid grid-cols-5 gap-2">
-                      {winningGuess.guess.split("").map((letter, index) => (
-                        <div
-                          key={index}
-                          className="w-12 h-12 bg-green-500 text-white rounded-md flex items-center justify-center text-xl font-bold shadow-md"
-                        >
-                          {letter.toUpperCase()}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-
-                // If no perfect pattern found, try to find the last guess (most likely the winning one)
-                const lastGuess = winner.guesses[winner.guesses.length - 1];
-                if (
-                  lastGuess &&
-                  lastGuess.guess &&
-                  typeof lastGuess.guess === "string"
-                ) {
-                  return (
-                    <div className="grid grid-cols-5 gap-2">
-                      {lastGuess.guess.split("").map((letter, index) => (
-                        <div
-                          key={index}
-                          className="w-12 h-12 bg-green-500 text-white rounded-md flex items-center justify-center text-xl font-bold shadow-md"
-                        >
-                          {letter.toUpperCase()}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-              }
-
-              // Fallback: try to get from room.battle.reveal (this is where the word is stored!)
-              if (
-                room?.battle?.reveal &&
-                typeof room.battle.reveal === "string"
-              ) {
-                return (
-                  <div className="grid grid-cols-5 gap-2">
-                    {room.battle.reveal.split("").map((letter, index) => (
-                      <div
-                        key={index}
-                        className="w-12 h-12 bg-green-500 text-white rounded-md flex items-center justify-center text-xl font-bold shadow-md"
-                      >
-                        {letter.toUpperCase()}
-                      </div>
-                    ))}
-                  </div>
-                );
-              }
-
-              // Fallback: try to get from room.battle.secret or revealedWord
-              const wordToShow =
-                room?.battle?.revealedWord || room?.battle?.secret;
-              if (wordToShow && typeof wordToShow === "string") {
-                return (
-                  <div className="grid grid-cols-5 gap-2">
-                    {wordToShow.split("").map((letter, index) => (
-                      <div
-                        key={index}
-                        className="w-12 h-12 bg-green-500 text-white rounded-md flex items-center justify-center text-xl font-bold shadow-md"
-                      >
-                        {letter.toUpperCase()}
-                      </div>
-                    ))}
-                  </div>
-                );
-              }
-
-              // Last resort: try to find ANY player who got it right and extract their winning word
-              const anyWinner = players.find(
-                (p) => p.done && p.guesses?.length <= 6
-              );
-              if (
-                anyWinner &&
-                anyWinner.guesses &&
-                anyWinner.guesses.length > 0
-              ) {
-                const lastGuess =
-                  anyWinner.guesses[anyWinner.guesses.length - 1];
-                if (
-                  lastGuess &&
-                  lastGuess.guess &&
-                  typeof lastGuess.guess === "string"
-                ) {
-                  return (
-                    <div className="grid grid-cols-5 gap-2">
-                      {lastGuess.guess.split("").map((letter, index) => (
-                        <div
-                          key={index}
-                          className="w-12 h-12 bg-green-500 text-white rounded-md flex items-center justify-center text-xl font-bold shadow-md"
-                        >
-                          {letter.toUpperCase()}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-              }
-
-              // If still no word, show debug info
-              return (
-                <div className="text-red-500 text-sm">
-                  <div>Word not available</div>
-                  <div className="text-xs mt-1">
-                    Debug: Winner guesses: {JSON.stringify(winner?.guesses)}
-                  </div>
-                </div>
-              );
-            })()}
+    <div className="w-full max-w-4xl mx-auto px-4">
+      {/* Compact Status Strip */}
+      <div className="text-center mb-3">
+        {roundFinished ? (
+          <div className="inline-flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-amber-500" />
+            <span
+              className="text-sm font-semibold"
+              style={{ color: "var(--card-text)" }}
+            >
+              Round Results
+            </span>
           </div>
-        </div>
-
-        {/* Winner Celebration */}
-        {(() => {
-          // Find the actual winner (someone with a winning guess)
-          const actualWinner = players.find((p) => {
-            if (!p.guesses || p.guesses.length === 0) return false;
-            return p.guesses.some(
-              (guess) =>
-                guess.pattern &&
-                guess.pattern.every(
-                  (result) =>
-                    result === "green" ||
-                    result === "correct" ||
-                    result === "G" ||
-                    result === "C"
-                )
-            );
-          });
-
-          // Fallback to room.battle.winner if no actual winner found
-          const winner =
-            actualWinner ||
-            (room?.battle?.winner
-              ? players.find((p) => p.id === room.battle.winner)
-              : null);
-
-          if (winner) {
-            const guesses = winner.guesses?.length || 0;
-            return (
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">🎉</span>
-                    <span className="text-lg font-semibold text-green-800">
-                      {winner.name} got it right!
-                    </span>
-                    <span className="text-2xl">🎉</span>
-                  </div>
-                  {/* Winner Tagline */}
-                  <div className="text-sm text-green-700 font-medium">
-                    {guesses === 1
-                      ? "🚨 CHEATER ALERT! - Did you peek at the answer?"
-                      : guesses === 2
-                      ? "🎯 Mind Reader - Are you psychic or just lucky?"
-                      : guesses === 3
-                      ? "⚡ Speed Demon - Lightning fast!"
-                      : guesses === 4
-                      ? "🎪 Show Off - Making it look easy!"
-                      : guesses === 5
-                      ? "😅 Close Call - Cut it a bit close there!"
-                      : guesses === 6
-                      ? "🎭 Drama Queen - Last second heroics!"
-                      : "🎮 Champion!"}
-                  </div>
-                </div>
-              </div>
-            );
-          }
-          return null;
-        })()}
+        ) : (
+          <div className="text-sm" style={{ color: "var(--card-text-muted)" }}>
+            {winnerId ? "Round in progress…" : "Waiting for host to start…"}
+          </div>
+        )}
       </div>
 
-      {/* Scoreboard */}
-      <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h3 className="text-lg font-semibold text-slate-800">Leaderboard</h3>
+      {/* Revealed word tiles (only when we have it) */}
+      {correctWord ? (
+        <div className="flex items-center justify-center mb-4">
+          <div className="grid grid-cols-5 gap-1.5">
+            {correctWord
+              .toUpperCase()
+              .padEnd(5, " ")
+              .slice(0, 5)
+              .split("")
+              .map((ch, i) => (
+                <div
+                  key={i}
+                  className="w-10 h-12 grid place-items-center rounded border font-extrabold uppercase tracking-wider text-sm"
+                  style={{
+                    backgroundColor: "var(--tile-correct-bg)",
+                    color: "var(--tile-correct-fg)",
+                    borderColor: "var(--tile-correct-bg)",
+                    animation: `tileFlip 0.6s ease-in-out ${i * 100}ms both`,
+                  }}
+                >
+                  {ch.trim()}
+                </div>
+              ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Podium - Physical podium structure */}
+      {podium.length > 0 && (
+        <div className="flex items-end justify-center gap-1.5 mb-4">
+          {/* 2nd place - Left podium */}
+          {podium[1] && (
+            <div className="flex flex-col items-center">
+              {/* Player card */}
+              <div
+                className="rounded border p-2 text-center mb-1.5 relative z-10"
+                style={{
+                  backgroundColor: "var(--card-bg)",
+                  borderColor: "var(--card-border)",
+                  color: "var(--card-text)",
+                  minWidth: "100px",
+                }}
+              >
+                <div className="text-lg mb-0.5">🥈</div>
+                <div
+                  className="font-semibold truncate text-xs"
+                  style={{ color: "var(--card-text)" }}
+                  title={podium[1].name}
+                >
+                  {podium[1].name}
+                </div>
+                <div
+                  className="text-xs mt-0.5"
+                  style={{ color: "var(--card-text-muted)" }}
+                >
+                  {podium[1].solved ? `${podium[1].steps}` : "—"}
+                </div>
+              </div>
+              {/* Podium base */}
+              <div
+                className="w-24 h-8 rounded-t-lg border-t-2"
+                style={{
+                  backgroundColor: "var(--card-hover)",
+                  borderColor: "var(--card-border)",
+                }}
+              />
+            </div>
+          )}
+
+          {/* 1st place - Middle podium (highest) */}
+          {podium[0] && (
+            <div className="flex flex-col items-center">
+              {/* Player card */}
+              <div
+                className="rounded border p-3 text-center mb-1.5 relative z-10"
+                style={{
+                  backgroundColor: "var(--card-bg)",
+                  borderColor: "var(--card-border)",
+                  color: "var(--card-text)",
+                  minWidth: "120px",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                }}
+              >
+                {/* Bouncing Crown */}
+                <div
+                  className="text-2xl mb-0.5 animate-bounce"
+                  style={{ animationDuration: "2s" }}
+                >
+                  👑
+                </div>
+                <div className="text-lg mb-0.5">🥇</div>
+                <div
+                  className="font-bold truncate text-sm"
+                  style={{ color: "var(--card-text)" }}
+                  title={podium[0].name}
+                >
+                  {podium[0].name}
+                </div>
+                <div
+                  className="text-xs mt-0.5"
+                  style={{ color: "var(--card-text-muted)" }}
+                >
+                  {podium[0].solved ? `${podium[0].steps}` : "—"}
+                </div>
+              </div>
+              {/* Podium base - tallest */}
+              <div
+                className="w-28 h-12 rounded-t-lg border-t-2"
+                style={{
+                  backgroundColor: "var(--card-hover)",
+                  borderColor: "var(--card-border)",
+                }}
+              />
+            </div>
+          )}
+
+          {/* 3rd place - Right podium */}
+          {podium[2] && (
+            <div className="flex flex-col items-center">
+              {/* Player card */}
+              <div
+                className="rounded border p-2 text-center mb-1.5 relative z-10"
+                style={{
+                  backgroundColor: "var(--card-bg)",
+                  borderColor: "var(--card-border)",
+                  color: "var(--card-text)",
+                  minWidth: "100px",
+                }}
+              >
+                <div className="text-lg mb-0.5">🥉</div>
+                <div
+                  className="font-semibold truncate text-xs"
+                  style={{ color: "var(--card-text)" }}
+                  title={podium[2].name}
+                >
+                  {podium[2].name}
+                </div>
+                <div
+                  className="text-xs mt-0.5"
+                  style={{ color: "var(--card-text-muted)" }}
+                >
+                  {podium[2].solved ? `${podium[2].steps}` : "—"}
+                </div>
+              </div>
+              {/* Podium base - shortest */}
+              <div
+                className="w-24 h-6 rounded-t-lg border-t-2"
+                style={{
+                  backgroundColor: "var(--card-hover)",
+                  borderColor: "var(--card-border)",
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Full table */}
+      <div
+        className="overflow-hidden rounded-lg border max-w-full"
+        style={{
+          borderColor: "var(--card-border)",
+          backgroundColor: "var(--card-bg)",
+        }}
+      >
+        <div
+          className="grid grid-cols-12 border-b text-xs font-semibold"
+          style={{
+            backgroundColor: "var(--card-hover)",
+            borderColor: "var(--card-border)",
+            color: "var(--card-text-muted)",
+          }}
+        >
+          <div className="col-span-6 px-2 py-1.5">Player</div>
+          <div className="col-span-2 px-2 py-1.5">Round</div>
+          <div className="col-span-2 px-2 py-1.5 text-center">Wins</div>
+          <div className="col-span-2 px-2 py-1.5 text-center">Streak</div>
         </div>
 
-        <div className="divide-y divide-slate-100">
-          {sortedPlayers.map((player, index) => (
+        <div className="max-h-[45vh] overflow-auto">
+          {sorted.map((p) => (
             <div
-              key={player.id}
-              className={`px-6 py-4 flex items-center gap-4 ${
-                index === 0 ? "bg-gradient-to-r from-yellow-50 to-amber-50" : ""
-              }`}
+              key={p.id}
+              className={[
+                "grid grid-cols-12 items-center border-b last:border-b-0",
+                "px-2 py-1.5 text-xs",
+                p.disconnected ? "opacity-60" : "",
+              ].join(" ")}
+              style={{
+                backgroundColor:
+                  p.id === winnerId
+                    ? "rgba(251, 191, 36, 0.1)"
+                    : "var(--card-bg)",
+                borderColor: "var(--card-border)",
+                color: "var(--card-text)",
+              }}
             >
-              {/* Rank */}
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                  index === 0
-                    ? "bg-yellow-400 text-white"
-                    : index === 1
-                    ? "bg-slate-300 text-white"
-                    : index === 2
-                    ? "bg-amber-600 text-white"
-                    : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                {index + 1}
+              <div className="col-span-6 flex items-center gap-2 min-w-0">
+                <div
+                  className={[
+                    "w-1.5 h-1.5 rounded-full",
+                    p.id === winnerId
+                      ? "bg-amber-500"
+                      : p.solved
+                      ? "bg-emerald-500"
+                      : "bg-slate-300",
+                  ].join(" ")}
+                />
+                <span className="truncate" title={p.name}>
+                  {p.name}
+                </span>
               </div>
 
-              {/* Player Info */}
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-slate-800">
-                    {player.name}
-                    {player.done && player.guesses?.length <= 6 && (
-                      <span className="ml-2 text-green-600 font-bold">✓</span>
-                    )}
-                  </span>
-                  {index === 0 && (
-                    <span className="text-yellow-500 text-lg">👑</span>
-                  )}
-                </div>
-                <div className="text-sm text-slate-500">
-                  {player.guesses?.length || 0}/6 guesses
-                </div>
-                {/* Fun Competitive Tagline */}
-                <div className={`text-xs mt-1 ${getTaglineColor(player)}`}>
-                  {getEnhancedTagline(player)}
-                </div>
+              <div className="col-span-2 text-xs">
+                {p.solved ? `${p.steps}` : `${p.guesses}`}
               </div>
 
-              {/* Stats */}
-              <div className="text-right space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-600">Wins:</span>
-                  <span className="font-semibold text-slate-800">
-                    {player.wins || 0}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-600">Streak:</span>
-                  <span
-                    className={`font-semibold ${getStreakColor(
-                      player.streak || 0
-                    )}`}
-                  >
-                    {player.streak || 0}
-                  </span>
-                  <span
-                    className={`text-lg ${getStreakColor(player.streak || 0)}`}
-                  >
-                    {getStreakIcon(player.streak || 0)}
-                  </span>
-                </div>
+              <div className="col-span-2 text-center text-xs">{p.wins}</div>
+
+              <div className="col-span-2 text-center text-xs">
+                {p.streak || 0}
               </div>
             </div>
           ))}
-        </div>
-      </div>
 
-      {/* Waiting Message */}
-      <div className="text-center text-slate-600">
-        <p className="text-lg">Waiting for host to start the next round...</p>
-        <p className="text-sm">Get ready for another challenge! 🚀</p>
-        {/* Fun Competitive Message */}
-        <div className="mt-3 p-3 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
-          <p className="text-xs text-purple-700 font-medium">
-            💪 Ready to redeem yourself? Or will you continue the streak of...
-            interesting choices?
-            {(() => {
-              const worstPlayer = sortedPlayers.find(
-                (p) => !p.done || p.guesses?.length >= 6
-              );
-              if (worstPlayer) {
-                const guesses = worstPlayer.guesses?.length || 0;
-                if (guesses === 0)
-                  return " Even the ghost players are embarrassed!";
-                if (guesses <= 2)
-                  return " At least you're consistent... consistently wrong!";
-                if (guesses <= 4)
-                  return " Maybe try reading the dictionary first?";
-                return " Time to step up your game!";
-              }
-              return " Let's see who's the real word wizard!";
-            })()}
-          </p>
+          {sorted.length === 0 && (
+            <div
+              className="text-center text-xs py-4"
+              style={{ color: "var(--card-text-muted)" }}
+            >
+              No players yet.
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
-
-export default GameResults;

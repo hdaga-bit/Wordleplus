@@ -16,6 +16,7 @@ const WORDLIST_PATH =
 
 let WORDS = [];
 let WORDSET = new Set();
+const ROUND_MS = Number(process.env.DUEL_ROUND_MS || 120000); // 2 minutes
 
 function loadWords() {
   const raw = fs.readFileSync(WORDLIST_PATH, "utf8");
@@ -37,6 +38,9 @@ function isValidWordLocal(word) {
   const w = word.toUpperCase();
   return /^[A-Z]{5}$/.test(w) && WORDSET.has(w);
 }
+// ---------- Duel timer ----------
+// Configure via env DUEL_ROUND_SECONDS (defaults to 420s = 7 minutes)
+const DUEL_ROUND_MS = Number(process.env.DUEL_ROUND_SECONDS || 420) * 1000;
 
 // ---------- Express app ----------
 const app = express();
@@ -65,6 +69,14 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 app.get("/api/validate", (req, res) => {
   const word = (req.query.word || "").toString();
   res.json({ valid: isValidWordLocal(word) });
+});
+
+// GET /api/random?letters=5 -> { word: "FLARE" }
+app.get("/api/random", (_req, res) => {
+  // we only have 5-letter words in WORDS, but keep the param for future use
+  const pool = WORDS; // or filter by length if you add other lists later
+  const word = pool[Math.floor(Math.random() * pool.length)] || null;
+  res.json({ word });
 });
 
 // Optional: hot-reload words (disable/protect in prod)
@@ -103,6 +115,8 @@ function maybeStartDuel(roomId) {
   );
   if (allReady && !room.started) {
     room.started = true;
+    room.duelDeadline = Date.now() + ROUND_MS; // ⬅️ set deadline
+
     // fresh state at start
     ids.forEach((id) => {
       room.players[id].guesses = [];
@@ -110,6 +124,13 @@ function maybeStartDuel(roomId) {
     });
     // clear any previous reveal from last round
     room.duelReveal = undefined;
+    // start authoritative round timer
+    room.duelDeadline = Date.now() + DUEL_ROUND_MS;
+    if (room._duelTimer) {
+      clearTimeout(room._duelTimer);
+      room._duelTimer = null;
+    }
+    room._duelTimer = setTimeout(() => endDuelByTimeout(roomId), DUEL_ROUND_MS);
     rooms.set(roomId, room);
     io.to(roomId).emit("roomState", sanitizeRoom(room));
   }
@@ -127,6 +148,37 @@ function updateStatsOnWin(room, winnerId) {
     if (id !== winnerId) room.players[id].streak = 0;
   });
 }
+// Ends a duel round when the timer expires
+function endDuelByTimeout(roomId) {
+  const room = rooms.get(roomId);
+  if (!room || room.mode !== "duel" || !room.started) return;
+  // Mark everyone as done so computeDuelWinner can resolve outcome
+  Object.values(room.players).forEach((p) => (p.done = true));
+  // Compute winner (fewest steps; ties → draw)
+  computeDuelWinner(room); // this can set winner + duelReveal + started=false
+
+  // Ensure reveal exists even if computeDuelWinner didn't set it yet
+  if (!room.duelReveal) {
+    const ids = Object.keys(room.players);
+    if (ids.length === 2) {
+      const [a, b] = ids;
+      room.duelReveal = {
+        [a]: room.players[a].secret,
+        [b]: room.players[b].secret,
+      };
+    }
+  }
+
+  room.started = false;
+  room.roundClosed = true;
+  room.duelDeadline = null;
+  if (room._duelTimer) {
+    clearTimeout(room._duelTimer);
+    room._duelTimer = null;
+  }
+
+  io.to(roomId).emit("roomState", sanitizeRoom(room));
+}
 
 // Reset round-scoped flags (not stats)
 function resetRoundFlags(room) {
@@ -139,6 +191,54 @@ function resetRoundFlags(room) {
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: corsOptions });
 
+// ---------- Battle helpers ----------
+function endBattleRound(room, winnerId = null) {
+  console.log("[DEBUG] endBattleRound called", {
+    roomId: room.id,
+    winnerId,
+    currentSecret: room.battle.secret,
+    battleStarted: room.battle.started,
+  });
+
+  // stop the round
+  room.battle.started = false;
+  room.battle.winner = winnerId || null;
+  console.log("[DEBUG] Setting battle winner in endBattleRound:", winnerId);
+
+  // reveal the word that was just played
+  room.battle.lastRevealedWord = room.battle.secret || null;
+
+  console.log("[DEBUG] after setting lastRevealedWord", {
+    lastRevealedWord: room.battle.lastRevealedWord,
+    secret: room.battle.secret,
+  });
+
+  // mark non-host players done (optional nicety)
+  Object.keys(room.players).forEach((pid) => {
+    if (pid !== room.hostId) room.players[pid].done = true;
+  });
+
+  // stats (only once)
+  if (winnerId && !room.roundClosed) {
+    updateStatsOnWin(room, winnerId);
+  }
+  room.roundClosed = true;
+
+  console.log("[battle] round ended", {
+    roomId: room.id,
+    winner: winnerId || null,
+    lastRevealedWord: room.battle.lastRevealedWord,
+  });
+
+  // Update the room in the rooms Map
+  rooms.set(room.id, room);
+  console.log("[DEBUG] Room updated in Map:", {
+    roomId: room.id,
+    lastRevealedWord: room.battle.lastRevealedWord,
+    battleObject: room.battle,
+  });
+}
+
 // ---------- Socket handlers ----------
 io.on("connection", (socket) => {
   // DUEL: play again (reset room to pre-start state)
@@ -147,19 +247,39 @@ io.on("connection", (socket) => {
     if (!room) return cb?.({ error: "Room not found" });
     if (room.mode !== "duel") return cb?.({ error: "Wrong mode" });
 
-    Object.values(room.players).forEach((p) => {
-      p.guesses = [];
-      p.done = false;
-      p.ready = false;
-      p.secret = null;
-      // keep wins/streak
-    });
+    // Mark this player as requesting rematch
+    if (room.players[socket.id]) {
+      room.players[socket.id].rematchRequested = true;
+    }
 
-    room.started = false;
-    resetRoundFlags(room);
+    // Check if both players have requested rematch
+    const playerIds = Object.keys(room.players);
+    const bothRequested = playerIds.every(
+      (id) => room.players[id].rematchRequested
+    );
+
+    if (bothRequested) {
+      // Reset the game for both players
+      Object.values(room.players).forEach((p) => {
+        p.guesses = [];
+        p.done = false;
+        p.ready = false;
+        p.secret = null;
+        p.rematchRequested = false; // Reset rematch flag
+        // keep wins/streak
+      });
+
+      room.started = false;
+      resetRoundFlags(room);
+      room.duelDeadline = null;
+      if (room._duelTimer) {
+        clearTimeout(room._duelTimer);
+        room._duelTimer = null;
+      }
+    }
 
     io.to(roomId).emit("roomState", sanitizeRoom(room));
-    cb?.({ ok: true });
+    cb?.({ ok: true, bothRequested });
   });
 
   // RESUME: client sends oldId + roomId after reconnect; we move their state
@@ -185,7 +305,15 @@ io.on("connection", (socket) => {
     }
 
     // Restore other references
-    if (room.battle?.winner === oldId) room.battle.winner = socket.id;
+    if (room.battle?.winner === oldId) {
+      console.log(
+        "[DEBUG] Updating battle winner due to reconnection:",
+        oldId,
+        "->",
+        socket.id
+      );
+      room.battle.winner = socket.id;
+    }
     if (room.winner === oldId) room.winner = socket.id;
 
     delete room.players[oldId];
@@ -219,7 +347,14 @@ io.on("connection", (socket) => {
       started: false,
       winner: null,
       duelReveal: undefined,
-      battle: { secret: null, started: false, winner: null, reveal: null },
+      duelDeadline: null, // ⬅️ add this
+
+      battle: {
+        secret: null, // internal only, never sent to clients
+        started: false,
+        winner: null,
+        lastRevealedWord: null, // <-- new, the one true source for Results
+      },
     };
 
     // when creating the room:
@@ -233,6 +368,7 @@ io.on("connection", (socket) => {
       wins: 0,
       streak: 0,
       disconnected: false,
+      rematchRequested: false,
     };
     rooms.set(id, room);
     socket.join(id);
@@ -256,6 +392,7 @@ io.on("connection", (socket) => {
       wins: 0,
       streak: 0,
       disconnected: false,
+      rematchRequested: false,
     };
     socket.join(roomId);
     cb?.({ ok: true });
@@ -304,6 +441,12 @@ io.on("connection", (socket) => {
 
       computeDuelWinner(room);
 
+      // If computeDuelWinner already ended the round, clear the timer
+      if (!room.started && room._duelTimer) {
+        clearTimeout(room._duelTimer);
+        room._duelTimer = null;
+        room.duelDeadline = null;
+      }
       // End-of-round: stop round and reveal both secrets for the victory modal
       const ids = Object.keys(room.players);
       if (ids.length === 2) {
@@ -321,6 +464,11 @@ io.on("connection", (socket) => {
             updateStatsOnWin(room, room.winner);
           }
           room.roundClosed = true;
+          room.duelDeadline = null;
+          if (room._duelTimer) {
+            clearTimeout(room._duelTimer);
+            room._duelTimer = null;
+          }
         }
       }
       io.to(roomId).emit("roomState", sanitizeRoom(room));
@@ -329,6 +477,15 @@ io.on("connection", (socket) => {
 
     // BATTLE logic
     if (room.mode === "battle") {
+      console.log("[DEBUG] makeGuess BATTLE called", {
+        roomId,
+        playerId: socket.id,
+        guess,
+        battleStarted: room.battle.started,
+        battleWinner: room.battle.winner,
+        secret: room.battle.secret,
+      });
+
       if (socket.id === room.hostId) {
         return cb?.({ error: "Host is spectating this round" });
       }
@@ -345,20 +502,14 @@ io.on("connection", (socket) => {
       let endNow = false;
 
       if (g === room.battle.secret) {
-        room.battle.winner = socket.id;
-        room.battle.started = false;
-        // Keep the secret available for display, don't clear it
-        endNow = true;
-
-        // mark others done
-        Object.keys(room.players).forEach((pid) => {
-          if (pid !== socket.id) room.players[pid].done = true;
+        console.log("[DEBUG] Player won, calling endBattleRound", {
+          roomId,
+          playerId: socket.id,
+          secret: room.battle.secret,
+          guess: g,
         });
-
-        if (!room.roundClosed) {
-          updateStatsOnWin(room, socket.id);
-          room.roundClosed = true;
-        }
+        endBattleRound(room, socket.id);
+        endNow = true;
       } else if (player.guesses.length >= 6) {
         player.done = true;
 
@@ -369,15 +520,38 @@ io.on("connection", (socket) => {
         const allDone = nonHostIds.every((pid) => room.players[pid].done);
 
         if (allDone && !room.battle.winner) {
-          room.battle.started = false;
-          // Keep the secret available for display, don't clear it
+          console.log("[DEBUG] All players done, calling endBattleRound", {
+            roomId,
+            secret: room.battle.secret,
+            allDone,
+          });
+          endBattleRound(room, null); // reveal on draw
           endNow = true;
-          // No winner -> no stats update
-          room.roundClosed = true;
         }
       }
 
       if (endNow) {
+        console.log("[emit] battle:", {
+          started: room.battle.started,
+          winner: room.battle.winner,
+          lastRevealedWord: room.battle.lastRevealedWord,
+        });
+        const sanitizedRoom = sanitizeRoom(room);
+        console.log(
+          "[DEBUG] sanitized room battle data:",
+          sanitizedRoom.battle
+        );
+        io.to(roomId).emit("roomState", sanitizedRoom);
+        return cb?.({ ok: true, pattern });
+      }
+
+      // If we reach here, the game didn't end through endBattleRound
+      // Let's check if there's a winner but no lastRevealedWord
+      if (room.battle.winner && !room.battle.lastRevealedWord) {
+        console.log(
+          "[DEBUG] WARNING: Game has winner but no lastRevealedWord! Calling endBattleRound now..."
+        );
+        endBattleRound(room, room.battle.winner);
         io.to(roomId).emit("roomState", sanitizeRoom(room));
         return cb?.({ ok: true, pattern });
       }
@@ -396,12 +570,12 @@ io.on("connection", (socket) => {
       return cb?.({ error: "Only host can set word" });
     if (!isValidWordLocal(secret)) return cb?.({ error: "Invalid word" });
 
-    // Store the old secret as the revealed word before setting the new one
-    if (room.battle.secret && !room.battle.revealedWord) {
-      room.battle.revealedWord = room.battle.secret;
-    }
-
     room.battle.secret = secret.toUpperCase();
+    console.log("[battle] host set secret:", {
+      roomId,
+      secret: room.battle.secret,
+    });
+
     Object.values(room.players).forEach((p) => {
       p.guesses = [];
       p.done = false;
@@ -421,10 +595,15 @@ io.on("connection", (socket) => {
       return cb?.({ error: "Need at least 2 players" });
 
     room.battle.started = true;
+    console.log("[DEBUG] Clearing battle winner in startBattle");
     room.battle.winner = null;
-    room.battle.reveal = null;
     room.roundClosed = false;
 
+    console.log("[emit] battle start:", {
+      started: room.battle.started,
+      winner: room.battle.winner,
+      lastRevealedWord: room.battle.lastRevealedWord,
+    });
     io.to(roomId).emit("roomState", sanitizeRoom(room));
     cb?.({ ok: true });
   });
@@ -442,8 +621,7 @@ io.on("connection", (socket) => {
     });
     room.battle.started = false;
     room.battle.winner = null;
-    room.battle.reveal = null;
-    room.battle.revealedWord = null; // Clear the revealed word for new round
+    // Don't clear lastRevealedWord on resets - leave it intact
     // Don't clear the secret immediately - keep it for display until new word is set
     // room.battle.secret = null; // require new word
     room.roundClosed = false;
@@ -502,14 +680,26 @@ function computeDuelWinner(room) {
       }
       room.duelReveal = { [a]: A.secret, [b]: B.secret };
       room.started = false;
+      room.duelDeadline = null;
+
+      if (room._duelTimer) {
+        clearTimeout(room._duelTimer);
+        room._duelTimer = null;
+      }
     }
   }
 }
 
 function sanitizeRoom(room) {
-  // Debug logging
-  console.log("sanitizeRoom - room.battle.secret:", room.battle?.secret);
-  console.log("sanitizeRoom - room.battle:", room.battle);
+  if (room.mode === "battle") {
+    console.log("[DEBUG] sanitizeRoom battle data", {
+      started: room.battle.started,
+      winner: room.battle.winner,
+      secret: room.battle.secret,
+      lastRevealedWord: room.battle.lastRevealedWord,
+      roundClosed: room.roundClosed,
+    });
+  }
 
   const players = Object.fromEntries(
     Object.entries(room.players).map(([id, p]) => {
@@ -521,10 +711,45 @@ function sanitizeRoom(room) {
         wins = 0,
         streak = 0,
         disconnected = false,
+        rematchRequested = false,
       } = p;
-      return [id, { name, ready, guesses, done, wins, streak, disconnected }];
+      return [
+        id,
+        {
+          id,
+          name,
+          ready,
+          guesses,
+          done,
+          wins,
+          streak,
+          disconnected,
+          rematchRequested,
+        },
+      ];
     })
   );
+
+  // --- Safe fallback: after a round has ended (roundClosed === true),
+  // if lastRevealedWord is missing but we still have the internal secret,
+  // expose the secret as the last revealed word.
+  let lastWord = room.battle.lastRevealedWord ?? null;
+  if (
+    !room.battle.started &&
+    room.roundClosed &&
+    !lastWord &&
+    room.battle.secret
+  ) {
+    lastWord = room.battle.secret;
+    console.warn(
+      "[GUARD] lastRevealedWord missing after round end, falling back to secret:",
+      {
+        roomId: room.id,
+        lastWord,
+      }
+    );
+  }
+
   return {
     id: room.id,
     mode: room.mode,
@@ -533,13 +758,13 @@ function sanitizeRoom(room) {
     started: room.started,
     winner: room.winner,
     duelReveal: room.duelReveal || undefined,
+    duelDeadline: room.duelDeadline ?? null,
     battle: {
       started: room.battle.started,
       winner: room.battle.winner,
-      reveal: room.battle.reveal,
       hasSecret: !!room.battle.secret,
-      secret: room.battle.secret, // Always show the secret (it's the word being guessed)
-      revealedWord: room.battle.revealedWord, // The word that was just guessed (for display)
+      secret: null, // never leak current/next secret
+      lastRevealedWord: lastWord, // <-- guarded value to clients
     },
   };
 }

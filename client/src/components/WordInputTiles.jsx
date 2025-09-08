@@ -1,141 +1,218 @@
-import React, { useState, useEffect } from "react";
-import { validateWord } from "../api";
+// components/SecretWordInput.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { validateWord } from "../api"; // same as WordInputTiles used
 
-function WordInputTiles({
-  onWordSubmit,
+export default function SecretWordInput({
+  onSubmit, // (word) => Promise|void
   placeholder = "Enter 5-letter word",
-  submitButtonText = "Start Game",
+  submitHint = "Press Enter to start",
+  validate = true, // set false if you don't want /api validation
+  disabled = false,
   className = "",
+  gap = 8,
+  padding = 16,
+  autoFit = true,
+  minTile = 28,
+  maxTile = 92,
 }) {
-  const [letters, setLetters] = useState(Array(5).fill(""));
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isValidating, setIsValidating] = useState(false);
+  const [value, setValue] = useState(""); // typed word (0..5)
   const [error, setError] = useState("");
+  const [isValidating, setIsValidating] = useState(false);
 
-  // Handle letter input
-  const handleLetterInput = (letter) => {
-    if (currentIndex < 5 && /^[A-Za-z]$/.test(letter)) {
-      const newLetters = [...letters];
-      newLetters[currentIndex] = letter.toUpperCase();
-      setLetters(newLetters);
-      setCurrentIndex(currentIndex + 1);
-      setError("");
-      console.log("Letter input:", letter, "New letters array:", newLetters);
-    }
-  };
+  // ---- same “auto-fit” sizing approach as Board/WordInputTiles ----
+  const wrapRef = useRef(null);
+  const inputRef = useRef(null);
+  const [wrapSize, setWrapSize] = useState({ w: 0, h: 0 });
 
-  // Handle backspace
-  const handleBackspace = () => {
-    if (currentIndex > 0) {
-      const newLetters = [...letters];
-      newLetters[currentIndex - 1] = "";
-      setLetters(newLetters);
-      setCurrentIndex(currentIndex - 1);
-      setError("");
-    }
-  };
-
-  // Handle keyboard events
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "Backspace") {
-        e.preventDefault();
-        handleBackspace();
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        handleSubmit();
-      } else if (/^[A-Za-z]$/.test(e.key)) {
-        e.preventDefault();
-        handleLetterInput(e.key);
-      }
-    };
+    inputRef.current?.focus();
+  }, []);
+  const focusInput = () => inputRef.current?.focus();
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentIndex, letters]);
+  useEffect(() => {
+    if (!wrapRef.current || !autoFit) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const r = entry?.contentRect;
+      if (r) setWrapSize({ w: Math.floor(r.width), h: Math.floor(r.height) });
+    });
+    ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, [autoFit]);
 
-  // Handle submit
-  const handleSubmit = async () => {
-    // Filter out empty strings and join
-    const word = letters
-      .filter((letter) => letter && letter.trim() !== "")
-      .join("");
-    console.log(
-      "Submitting word:",
-      word,
-      "Length:",
-      word.length,
-      "Letters array:",
-      letters
-    );
+  const computedTile = useMemo(() => {
+    if (!autoFit || !wrapSize.w || !wrapSize.h) return 48;
+    const cols = 5,
+      rows = 1;
+    const innerW = Math.max(0, wrapSize.w - padding * 2);
+    const innerH = Math.max(0, wrapSize.h - padding * 2);
+    const usableW = innerW - gap * (cols - 1);
+    const usableH = innerH - gap * (rows - 1);
+    const perCol = Math.floor(usableW / cols);
+    const perRow = Math.floor(usableH / rows);
+    let t = Math.min(perCol, perRow);
+    if (!Number.isFinite(t) || t <= 0) t = 48;
+    return Math.max(minTile, Math.min(maxTile, t));
+  }, [autoFit, wrapSize, padding, gap, minTile, maxTile]);
 
+  // --- local key handling on a hidden input; no window listeners ---
+  const onKeyDown = (e) => {
+    if (disabled) return;
+    e.stopPropagation(); // prevent App's global key handler
+    const k = e.key;
+
+    if (k === "Enter") {
+      e.preventDefault();
+      submit();
+      return;
+    }
+    if (k === "Backspace") {
+      e.preventDefault();
+      setError("");
+      setValue((prev) => prev.slice(0, -1));
+      return;
+    }
+    if (/^[a-zA-Z]$/.test(k)) {
+      e.preventDefault();
+      setError("");
+      setValue((prev) => (prev.length < 5 ? prev + k.toUpperCase() : prev));
+      return;
+    }
+  };
+
+  async function submit() {
+    const word = value.trim().toUpperCase();
     if (word.length !== 5) {
       setError("Word must be 5 letters");
       return;
     }
 
-    setIsValidating(true);
-    setError("");
-
-    try {
-      const result = await validateWord(word);
-      console.log("Validation result:", result);
-      if (result.valid) {
-        onWordSubmit(word);
-        // Reset after successful submission
-        setLetters(Array(5).fill(""));
-        setCurrentIndex(0);
-      } else {
-        setError("Not a valid word");
+    if (validate) {
+      setIsValidating(true);
+      try {
+        const v = await validateWord(word);
+        if (!v?.valid) {
+          setError("Not a valid word");
+          setValue(""); // clear invalid word like Duel behavior
+          return;
+        }
+      } catch (err) {
+        console.error(err);
+        setError("Validation failed");
+        return;
+      } finally {
+        setIsValidating(false);
       }
-    } catch (err) {
-      console.error("Validation error:", err);
-      setError("Error validating word");
-    } finally {
-      setIsValidating(false);
     }
+
+    await onSubmit?.(word);
+    // Keep the word visible; once the round starts your Host screen will switch to spectate.
+    inputRef.current?.focus();
+  }
+
+  const tiles = Array.from({ length: 5 }).map((_, i) => {
+    const ch = value[i] || "";
+    const typingLen = value.length;
+    const isEmpty = ch === "";
+    const isActive = !disabled && isEmpty && i === typingLen;
+
+    let bg = "#fff",
+      color = "#000",
+      border = "1px solid #ccc";
+    if (isActive) {
+      bg = "#e3f2fd"; // light blue (like Duel typing cue)
+      color = "#1976d2";
+      border = "2px solid #1976d2";
+    } else if (ch) {
+      bg = "#fff";
+      color = "#374151";
+      border = "1px solid #9ca3af";
+    } else {
+      bg = "#f9fafb";
+      color = "#9ca3af";
+      border = "1px solid #d1d5db";
+    }
+
+    return (
+      <div
+        key={i}
+        style={{
+          width: computedTile,
+          height: computedTile,
+          display: "grid",
+          placeItems: "center",
+          background: bg,
+          color,
+          fontWeight: "bold",
+          textTransform: "uppercase",
+          border,
+          borderRadius: 6,
+          overflow: "hidden",
+          transition: "all 0.2s ease",
+        }}
+      >
+        {ch}
+      </div>
+    );
+  });
+
+  const gridStyle = {
+    display: "grid",
+    gridTemplateColumns: `repeat(5, ${computedTile}px)`,
+    gridTemplateRows: `${computedTile}px`,
+    gap,
   };
 
-  // Check if word is complete
-  const isWordComplete = letters.every(
-    (letter) => letter && letter.trim() !== ""
-  );
-
   return (
-    <div className={`flex flex-col items-center space-y-4 ${className}`}>
-      {/* Word Input Tiles */}
-      <div className="flex justify-center">
-        <div className="grid grid-cols-5 gap-2">
-          {letters.map((letter, index) => (
-            <div
-              key={index}
-              className={`w-12 h-12 border-2 rounded-md flex items-center justify-center text-lg font-bold transition-all duration-200 ${
-                index === currentIndex
-                  ? "border-blue-500 bg-blue-50 text-blue-700"
-                  : letter
-                  ? "border-slate-400 bg-white text-slate-700"
-                  : "border-slate-300 bg-slate-50 text-slate-400"
-              }`}
-            >
-              {letter || ""}
-            </div>
-          ))}
-        </div>
+    <div
+      className={["flex flex-col items-center space-y-2", className].join(" ")}
+    >
+      {/* Hidden input to capture keys locally (prevents global handler) */}
+      <input
+        ref={inputRef}
+        aria-label={placeholder}
+        value="" // we keep the visual state in `value`
+        onChange={() => {}}
+        onKeyDown={onKeyDown}
+        disabled={disabled}
+        style={{
+          position: "absolute",
+          opacity: 0,
+          width: 1,
+          height: 1,
+          pointerEvents: "none",
+        }}
+      />
+
+      <div
+        ref={wrapRef}
+        onClick={() => !disabled && focusInput()}
+        style={{
+          width: "100%",
+          height: "100%",
+          padding,
+          boxSizing: "border-box",
+          display: "grid",
+          placeItems: "center",
+          cursor: disabled ? "default" : "text",
+        }}
+      >
+        <div style={gridStyle}>{tiles}</div>
       </div>
 
-      {/* Error Message */}
+      {/* Hints / status */}
+      {!isValidating && !error && value.length === 0 && (
+        <div className="text-xs text-slate-500">{placeholder}</div>
+      )}
+      {!isValidating && !error && value.length > 0 && value.length < 5 && (
+        <div className="text-xs text-slate-500">Type a 5-letter word…</div>
+      )}
+      {!isValidating && !error && value.length === 5 && (
+        <div className="text-xs text-slate-500">{submitHint}</div>
+      )}
       {error && <div className="text-red-600 text-sm font-medium">{error}</div>}
-
-      {/* Submit Button */}
-      <button
-        onClick={handleSubmit}
-        disabled={!isWordComplete || isValidating}
-        className="px-6 py-2 bg-blue-600 text-white rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
-      >
-        {isValidating ? "Validating..." : submitButtonText}
-      </button>
+      {isValidating && (
+        <div className="text-blue-600 text-sm font-medium">Validating…</div>
+      )}
     </div>
   );
 }
-
-export default WordInputTiles;
