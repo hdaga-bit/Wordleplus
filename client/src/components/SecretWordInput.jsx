@@ -54,7 +54,7 @@ export default function SecretWordInput({
         inputRef.current?.focus();
       }
     } catch (e) {
-      console.error("Failed to generate word:", e);
+      // Failed to generate word
     }
   }
 

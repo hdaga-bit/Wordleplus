@@ -222,7 +222,6 @@ import PlayerProgressCard from "../components/PlayerProgressCard.jsx";
 import MobileBattleLayout from "../components/MobileBattleLayout.jsx";
 import GameResults from "../components/GameResults.jsx";
 import ParticleEffect from "../components/ParticleEffect.jsx";
-import TransitionWrapper from "../components/TransitionWrapper.jsx";
 
 function BattleGameScreen({
   room,
@@ -248,9 +247,6 @@ function BattleGameScreen({
   const [particlePosition, setParticlePosition] = useState({ x: 0, y: 0 });
   const [lastStreak, setLastStreak] = useState(0);
 
-  // Transition state
-  const [showResults, setShowResults] = useState(false);
-  const [transitionKey, setTransitionKey] = useState(0);
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
@@ -261,28 +257,13 @@ function BattleGameScreen({
   // Debug logging to verify server payload
   useEffect(() => {
     if (room?.battle) {
-      console.log("client battle:", {
-        started: room.battle.started,
-        winner: room.battle.winner,
-        lastRevealedWord: room.battle.lastRevealedWord,
-        hasSecret: room.battle.hasSecret,
-        secret: room.battle.secret,
-      });
-      console.log("Full room object:", room);
+      // Battle state updated
     }
   }, [room?.battle]);
 
   const roundActive = !!room?.battle?.started;
   const lastWord = room?.battle?.lastRevealedWord ?? null;
   const roundFinished = !roundActive && !!lastWord;
-
-  console.log("[DEBUG] BattleGameScreen state:", {
-    roundActive,
-    lastWord,
-    roundFinished,
-    battleStarted: room?.battle?.started,
-    battleWinner: room?.battle?.winner,
-  });
 
   const correctWord = useMemo(
     () => (roundFinished ? lastWord : null),
@@ -362,20 +343,6 @@ function BattleGameScreen({
     }
   }, [roundFinished, room?.battle?.winner, me?.id]);
 
-  // Handle round to results transition
-  useEffect(() => {
-    if (roundFinished && !showResults) {
-      // Small delay before showing results for smooth transition
-      const timer = setTimeout(() => {
-        setShowResults(true);
-        setTransitionKey((prev) => prev + 1);
-      }, 500);
-      return () => clearTimeout(timer);
-    } else if (!roundFinished && showResults) {
-      setShowResults(false);
-    }
-  }, [roundFinished, showResults]);
-
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-background relative">
       {/* Particle Effects */}
@@ -432,24 +399,44 @@ function BattleGameScreen({
       {/* Main */}
       <main className="flex-1 px-4 pb-4" style={{ minHeight: 0 }}>
         {isMobile ? (
-          <TransitionWrapper
-            show={roundActive}
-            transitionClass="fade"
-            duration={400}
-            key={`mobile-${transitionKey}`}
-          >
-            {roundActive ? (
-              <MobileBattleLayout
-                me={me}
-                otherPlayers={otherPlayers}
-                currentGuess={currentGuess}
-                shakeKey={shakeKey}
-                showActiveError={showActiveError}
-                letterStates={letterStates}
-                canGuessBattle={canGuessBattle}
-                onKeyPress={onKeyPress}
-                className="h-full"
+          roundActive ? (
+            <MobileBattleLayout
+              me={me}
+              otherPlayers={otherPlayers}
+              currentGuess={currentGuess}
+              shakeKey={shakeKey}
+              showActiveError={showActiveError}
+              letterStates={letterStates}
+              canGuessBattle={canGuessBattle}
+              onKeyPress={onKeyPress}
+              className="h-full"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <GameResults
+                room={room}
+                players={allPlayers}
+                correctWord={correctWord}
               />
+            </div>
+          )
+        ) : (
+          <div className="flex-1 flex items-center justify-center min-h-0 relative">
+            {/* Center board */}
+            {roundActive ? (
+              <div className="w-full h-full max-w-[min(1100px,95vw)] max-h-[calc(100vh-180px)] flex items-center justify-center">
+                <Board
+                  guesses={me?.guesses || []}
+                  activeGuess={currentGuess}
+                  errorShakeKey={shakeKey}
+                  errorActiveRow={showActiveError}
+                  maxTile={112}
+                  minTile={56}
+                  gap={10}
+                  padding={12}
+                  guessFlipKey={guessFlipKey}
+                />
+              </div>
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <GameResults
@@ -459,40 +446,6 @@ function BattleGameScreen({
                 />
               </div>
             )}
-          </TransitionWrapper>
-        ) : (
-          <div className="flex-1 flex items-center justify-center min-h-0 relative">
-            {/* Center board */}
-            <TransitionWrapper
-              show={roundActive}
-              transitionClass="round-to-results"
-              duration={600}
-              key={`desktop-${transitionKey}`}
-            >
-              {roundActive ? (
-                <div className="w-full h-full max-w-[min(1100px,95vw)] max-h-[calc(100vh-180px)] flex items-center justify-center">
-                  <Board
-                    guesses={me?.guesses || []}
-                    activeGuess={currentGuess}
-                    errorShakeKey={shakeKey}
-                    errorActiveRow={showActiveError}
-                    maxTile={112}
-                    minTile={56}
-                    gap={10}
-                    padding={12}
-                    guessFlipKey={guessFlipKey}
-                  />
-                </div>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <GameResults
-                    room={room}
-                    players={allPlayers}
-                    correctWord={correctWord}
-                  />
-                </div>
-              )}
-            </TransitionWrapper>
 
             {/* Right rail: other players */}
             {roundActive && (
@@ -504,7 +457,6 @@ function BattleGameScreen({
                     isCurrentPlayer={false}
                   />
                 ))}
-                {/* fade */}
                 <div className="pointer-events-none sticky bottom-0 h-6 bg-gradient-to-t from-background to-transparent" />
               </div>
             )}
