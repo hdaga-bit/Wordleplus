@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import { validateWord } from "../api"; // same API your old component used
+import { validateWord, getRandomWord } from "../api";
 
 export default function SecretWordInputRow({
   onSubmit, // (word) => Promise|void
@@ -10,6 +10,7 @@ export default function SecretWordInputRow({
   placeholder = "Enter 5-letter word",
   submitHint = "Press Enter to start",
   className = "",
+  showGenerate = true, // NEW: show the 🎲 button
 }) {
   const [value, setValue] = useState(""); // typed word (0..5)
   const [error, setError] = useState("");
@@ -34,6 +35,11 @@ export default function SecretWordInputRow({
       e.preventDefault();
       setError("");
       setValue((s) => s.slice(0, -1));
+      return;
+    }
+    if (k === "r" || k === "R") {
+      e.preventDefault();
+      handleGenerate();
       return;
     }
     if (/^[a-zA-Z]$/.test(k)) {
@@ -71,6 +77,23 @@ export default function SecretWordInputRow({
     inputRef.current?.focus();
   }
 
+  async function handleGenerate() {
+    try {
+      setError("");
+      const w = await getRandomWord();
+      if (!w || w.length !== 5) {
+        setError("Could not generate a word");
+        return;
+      }
+      setValue(w); // fill tiles…
+      inputRef.current?.focus();
+      // …but DO NOT auto-submit. User presses Enter to accept.
+    } catch (e) {
+      console.error(e);
+      setError("Failed to generate word");
+    }
+  }
+
   // CSS calc: simple inline-grid; NO height:100%; no ResizeObserver
   const gridStyle = {
     display: "inline-grid",
@@ -89,6 +112,8 @@ export default function SecretWordInputRow({
         onKeyDown={onKeyDown}
         disabled={disabled}
         aria-label={placeholder}
+        autoFocus
+        tabIndex={-1}
         style={{
           position: "absolute",
           opacity: 0,
@@ -143,18 +168,39 @@ export default function SecretWordInputRow({
         })}
       </div>
 
-      {/* tiny hint row (never duplicates layout) */}
-      <div className="mt-2 text-xs text-slate-500 h-5">
+      {/* Controls / hint row */}
+      <div className="mt-2 flex items-center gap-2 h-5">
+        {showGenerate && (
+          <button
+            type="button"
+            className="text-xs px-2 py-1 rounded bg-slate-100 border border-slate-200 hover:bg-slate-200"
+            onMouseDown={(e) => e.preventDefault()} // keep focus on tile row
+            onClick={handleGenerate}
+            disabled={disabled || busy}
+            aria-label="Generate random word"
+            title="Generate random word (or press R)"
+          >
+            🎲 Generate
+          </button>
+        )}
+
         {busy ? (
-          <span className="text-blue-600">Validating…</span>
-        ) : error ? (
-          <span className="text-red-600">{error}</span>
-        ) : value.length === 0 ? (
-          placeholder
-        ) : value.length < 5 ? (
-          "Type a 5-letter word…"
+          <span className="text-blue-600 text-xs">Validating…</span>
         ) : (
-          submitHint
+          <span
+            className={[
+              "text-xs",
+              error ? "text-red-600" : "text-slate-500",
+            ].join(" ")}
+          >
+            {error
+              ? error
+              : value.length === 0
+              ? placeholder
+              : value.length < 5
+              ? "Type a 5-letter word…"
+              : submitHint}
+          </span>
         )}
       </div>
     </div>

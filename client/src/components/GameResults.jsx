@@ -596,7 +596,7 @@ import { Trophy } from "lucide-react";
 
 export default function GameResults({ room, players = [], correctWord }) {
   const winnerId = room?.battle?.winner || null;
-  const roundFinished = !!(winnerId || room?.battle?.reveal);
+  const roundFinished = !!winnerId || !!correctWord;
 
   // Per-round stats from guesses vs. correctWord
   const results = useMemo(() => {

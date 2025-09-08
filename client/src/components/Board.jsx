@@ -25,6 +25,7 @@ export default function Board({
   errorActiveRow = false,
   secretErrorKey = 0,
   secretErrorActive = false,
+  onMeasure = () => {},
 }) {
   // --- Build 6 rows (guesses + active + empty)
   const rows = useMemo(() => {
@@ -106,6 +107,12 @@ export default function Board({
     gap,
   };
 
+  // Tell parent our layout numbers so it can align accessories (like the dice)
+  useEffect(() => {
+    if (typeof onMeasure === "function") {
+      onMeasure({ tile: computedTile, gap, padding });
+    }
+  }, [computedTile, gap, padding, onMeasure]);
   return (
     <>
       <style>

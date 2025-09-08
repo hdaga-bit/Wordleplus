@@ -46,14 +46,27 @@ export default function Keyboard({
     const [active, setActive] = useState(false);
     const [pressed, setPressed] = useState(false);
 
-    // Choose idle swatch based on prefers-color-scheme; tailwind dark class
-    // may not be available here so we detect via CSS media query once.
-    const prefersDark =
-      typeof window !== "undefined" &&
-      window.matchMedia &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches;
-
-    const idle = prefersDark ? BOARD_COLORS.idleDark : BOARD_COLORS.idleLight;
+    // Use CSS variables for theming to ensure perfect dark mode contrast
+    const idle = {
+      bg:
+        typeof window !== "undefined"
+          ? getComputedStyle(document.documentElement)
+              .getPropertyValue("--kbd-idle-bg")
+              .trim() || BOARD_COLORS.idleLight.bg
+          : BOARD_COLORS.idleLight.bg,
+      fg:
+        typeof window !== "undefined"
+          ? getComputedStyle(document.documentElement)
+              .getPropertyValue("--kbd-idle-fg")
+              .trim() || BOARD_COLORS.idleLight.fg
+          : BOARD_COLORS.idleLight.fg,
+      border:
+        typeof window !== "undefined"
+          ? getComputedStyle(document.documentElement)
+              .getPropertyValue("--kbd-idle-border")
+              .trim() || BOARD_COLORS.idleLight.border
+          : BOARD_COLORS.idleLight.border,
+    };
 
     const swatch =
       state === "correct"
@@ -101,7 +114,7 @@ export default function Keyboard({
           isAction
             ? "text-[11px] sm:text-xs basis-[18%] sm:basis-[10%]"
             : "text-sm sm:text-base basis-[9%] sm:basis-[7%]",
-          "min-h-[48px] sm:min-h-[40px] touch-manipulation",
+          "min-h-[44px] sm:min-h-[36px] touch-manipulation",
           disabled && "opacity-60 cursor-not-allowed hover:scale-100"
         )}
         style={{

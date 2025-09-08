@@ -9,6 +9,8 @@ import BattleGameScreen from "./screens/BattleGameScreen.jsx";
 import HostSpectateScreen from "./screens/HostSpectateScreen.jsx";
 import ConnectionBar from "./components/ConnectionBar.jsx";
 import VictoryModal from "./components/VictoryModal.jsx";
+import BrandHeader from "./components/BrandHeader.jsx";
+import Backdrop from "./components/Backdrop.jsx";
 
 // Extracted Hooks
 import { useGameState } from "./hooks/useGameState.js";
@@ -221,6 +223,13 @@ export default function App() {
 
   useEffect(() => {
     const onKeyDown = (e) => {
+      // If I'm the host in Battle and the round hasn't started yet,
+      // we're on the "type secret" screen — don't handle keys globally.
+      const hostTyping =
+        room?.mode === "battle" &&
+        (isHost || wasHost) &&
+        !room?.battle?.started;
+      if (hostTyping) return;
       const key =
         e.key === "Enter"
           ? "ENTER"
@@ -239,7 +248,15 @@ export default function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [room?.mode, isHost, canGuessDuel, canGuessBattle, currentGuess]); // screen transitions
+  }, [
+    room?.mode,
+    room?.battle?.started,
+    isHost,
+    wasHost,
+    canGuessDuel,
+    canGuessBattle,
+    currentGuess,
+  ]);
   useEffect(() => {
     if (room?.mode === "duel" && room?.started) {
       setScreen("game");
@@ -267,14 +284,28 @@ export default function App() {
 
   return (
     <>
+      <Backdrop />
+
       {/* Game screens break out of main container - Full viewport */}
       {screen === "game" && (
         <>
-          <ConnectionBar
-            connected={connected}
-            canRejoin={canRejoin}
-            onRejoin={doRejoin}
-            savedRoomId={savedRoomId}
+          <BrandHeader
+            onHomeClick={() => {
+              goHome();
+              setRoom(null);
+              setScreen("home");
+              setRoomId("");
+              setCurrentGuess("");
+              setShowVictory(false);
+            }}
+            right={
+              <ConnectionBar
+                connected={connected}
+                canRejoin={canRejoin}
+                onRejoin={doRejoin}
+                savedRoomId={savedRoomId}
+              />
+            }
           />
 
           {/* DUEL GAME */}
@@ -312,8 +343,7 @@ export default function App() {
                 room={room}
                 players={players}
                 onWordSubmit={async (word) => {
-                  const resp = await setWordAndStart(room?.id, word);
-                  if (resp?.error) setMsg(resp.error);
+                  await setWordAndStart(room.id, word); // emits setHostWord then startBattle
                 }}
                 onCopyRoomId={() =>
                   navigator.clipboard.writeText(room?.id || "")
@@ -341,19 +371,9 @@ export default function App() {
 
       {/* Main app container for home/lobby screens - Constrained width */}
       {screen !== "game" && (
-        <div className="max-w-7xl mx-auto p-4 font-sans">
-          {" "}
-          {!viewingHost && (
-            <ConnectionBar
-              connected={connected}
-              canRejoin={canRejoin}
-              onRejoin={doRejoin}
-              savedRoomId={savedRoomId}
-            />
-          )}
-          {/* Title links "home" */}
-          <button
-            onClick={() => {
+        <div className="min-h-screen">
+          <BrandHeader
+            onHomeClick={() => {
               goHome();
               setRoom(null);
               setScreen("home");
@@ -361,35 +381,44 @@ export default function App() {
               setCurrentGuess("");
               setShowVictory(false);
             }}
-            className="text-3xl font-bold text-red-600 mb-6 hover:opacity-80 transition-opacity"
-            aria-label="Go to home"
-          >
-            Friendle Clone
-          </button>
-          {screen === "home" && (
-            <HomeScreen
-              name={name}
-              setName={setName}
-              roomId={roomId}
-              setRoomId={setRoomId}
-              mode={mode}
-              setMode={setMode}
-              onCreate={create}
-              onJoin={join}
-              message={msg}
-            />
-          )}
-          {/* Victory Modal - Only for battle mode now */}
-          {showVictory && room?.mode === "battle" && (
-            <VictoryModal
-              winner={winner}
-              onClose={() => setShowVictory(false)}
-              onPlayAgain={() => {
-                setShowVictory(false);
-                // For battle mode, just close the modal and let host enter new word
-              }}
-            />
-          )}
+            right={
+              !viewingHost && (
+                <ConnectionBar
+                  connected={connected}
+                  canRejoin={canRejoin}
+                  onRejoin={doRejoin}
+                  savedRoomId={savedRoomId}
+                />
+              )
+            }
+          />
+
+          <div className="max-w-7xl mx-auto p-4 font-sans">
+            {screen === "home" && (
+              <HomeScreen
+                name={name}
+                setName={setName}
+                roomId={roomId}
+                setRoomId={setRoomId}
+                mode={mode}
+                setMode={setMode}
+                onCreate={create}
+                onJoin={join}
+                message={msg}
+              />
+            )}
+            {/* Victory Modal - Only for battle mode now */}
+            {showVictory && room?.mode === "battle" && (
+              <VictoryModal
+                winner={winner}
+                onClose={() => setShowVictory(false)}
+                onPlayAgain={() => {
+                  setShowVictory(false);
+                  // For battle mode, just close the modal and let host enter new word
+                }}
+              />
+            )}
+          </div>
         </div>
       )}
     </>

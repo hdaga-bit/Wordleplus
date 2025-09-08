@@ -1,5 +1,6 @@
 // components/SecretWordInput.jsx
 import React, { useEffect, useRef, useState } from "react";
+import { getRandomWord } from "../api";
 
 export default function SecretWordInput({
   disabled = false,
@@ -7,6 +8,7 @@ export default function SecretWordInput({
   submitHint = "Press Enter to start",
   tile = 64, // tile size px
   className = "",
+  showGenerate = true,
 }) {
   const [word, setWord] = useState("");
   const inputRef = useRef(null);
@@ -33,11 +35,28 @@ export default function SecretWordInput({
       setWord((w) => w.slice(0, -1));
       return;
     }
+    if (k === "r" || k === "R") {
+      e.preventDefault();
+      handleGenerate();
+      return;
+    }
     if (/^[a-zA-Z]$/.test(k)) {
       e.preventDefault();
       setWord((w) => (w.length < 5 ? w + k.toUpperCase() : w));
     }
   };
+
+  async function handleGenerate() {
+    try {
+      const w = await getRandomWord();
+      if (w && w.length === 5) {
+        setWord(w);
+        inputRef.current?.focus();
+      }
+    } catch (e) {
+      console.error("Failed to generate word:", e);
+    }
+  }
 
   return (
     <div className={`flex flex-col items-center gap-2 ${className}`}>
@@ -74,8 +93,23 @@ export default function SecretWordInput({
         aria-label="Enter 5-letter secret word"
       />
 
-      <div className="text-xs text-slate-500">
-        {word.length < 5 ? "Type a 5-letter word…" : submitHint}
+      <div className="flex items-center gap-2">
+        {showGenerate && (
+          <button
+            type="button"
+            className="text-xs px-2 py-1 rounded bg-slate-100 border border-slate-200 hover:bg-slate-200"
+            onMouseDown={(e) => e.preventDefault()} // keep focus on input
+            onClick={handleGenerate}
+            disabled={disabled}
+            aria-label="Generate random word"
+            title="Generate random word (or press R)"
+          >
+            🎲 Generate
+          </button>
+        )}
+        <div className="text-xs text-slate-500">
+          {word.length < 5 ? "Type a 5-letter word…" : submitHint}
+        </div>
       </div>
     </div>
   );

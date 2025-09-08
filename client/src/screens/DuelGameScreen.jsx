@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useLayoutEffect } from "react";
 import Board from "../components/Board.jsx";
 import Keyboard from "../components/Keyboard.jsx";
 import { DuelPlayerCard } from "../components/DuelPlayerCard.jsx";
@@ -7,7 +7,8 @@ import ParticleEffect from "../components/ParticleEffect.jsx";
 import ConfettiEffect from "../components/ConfettiEffect.jsx";
 import { useSwipeGestures } from "../hooks/useSwipeGestures.js";
 import { Button } from "@/components/ui/button";
-
+import { getRandomWord } from "../api";
+import { useRef } from "react";
 function DuelGameScreen({
   room,
   me,
@@ -33,6 +34,16 @@ function DuelGameScreen({
   // Mobile UX
   const [mobileView, setMobileView] = useState("me");
   const [isMobile, setIsMobile] = useState(false);
+
+  // Generate random word
+  const [genBusy, setGenBusy] = useState(false);
+  const [boardMetrics, setBoardMetrics] = useState(null);
+
+  // Dynamic tile cap calculation
+  const ROWS = 7; // 1 secret row + 6 guess rows
+  const PAD = 12; // matches Board padding you pass
+  const GAP = 10; // matches Board gap you pass
+  const [tileCap, setTileCap] = useState(140); // start generous
 
   // Derived flags
   const isGameStarted = !!room?.started;
@@ -112,6 +123,22 @@ function DuelGameScreen({
     }
   };
 
+  async function handleGenerateSecret() {
+    if (!canSetSecret || genBusy) return;
+    try {
+      setGenBusy(true);
+      const w = await getRandomWord();
+      if (w && w.length === 5) {
+        setSecretWordInput(w); // fill the tiles
+        // NOTE: still requires Enter to lock in (per your flow)
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setGenBusy(false);
+    }
+  }
+
   // On-screen keyboard while setting MY secret
   const handleSecretKeyPress = (key) => {
     if (!canSetSecret) return;
@@ -137,6 +164,27 @@ function DuelGameScreen({
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  // Dynamic tile cap calculation
+  useLayoutEffect(() => {
+    function calc() {
+      // heights we must leave for non-board UI (rough but safe)
+      const statusH = 68; // "Fewest guesses wins" + timer
+      const footerH = canSetSecret || canGuess ? 220 : 96; // keyboard vs message
+      const vpad = 24; // page paddings/margins
+      const available = window.innerHeight - (statusH + footerH + vpad);
+
+      // tile that fits vertically inside 'available'
+      const best = Math.floor((available - PAD * 2 - GAP * (ROWS - 1)) / ROWS);
+
+      // clamp to a sensible range; your Board respects maxTile/minTile
+      setTileCap(Math.max(50, Math.min(150, best)));
+    }
+
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, [canSetSecret, canGuess]);
 
   // 🔑 Physical keyboard routing
   useEffect(() => {
@@ -284,7 +332,7 @@ function DuelGameScreen({
     : "empty";
   return (
     <div
-      className="h-screen w-screen overflow-hidden flex flex-col bg-background relative"
+      className="min-h-dvh w-full overflow-hidden flex flex-col bg-background relative"
       {...swipeGestures}
     >
       <ParticleEffect
@@ -294,31 +342,8 @@ function DuelGameScreen({
       />
       <ConfettiEffect trigger={showConfetti} />
 
-      {/* Header */}
-      <header className="px-4 pt-3 pb-2">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-              W+
-            </div>
-            <h1 className="text-lg font-bold text-slate-800">WordlePlus</h1>
-          </div>
-
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg">
-            <span className="text-xs text-slate-600 font-medium">Room:</span>
-            <span className="font-mono font-bold text-slate-800 text-sm">
-              {room?.id}
-            </span>
-            <button
-              onClick={() => navigator.clipboard.writeText(room?.id || "")}
-              className="text-slate-500 hover:text-slate-700 transition-colors"
-              aria-label="Copy room ID"
-            >
-              📋
-            </button>
-          </div>
-        </div>
-
+      {/* Game Status */}
+      <div className="px-4 pt-3 pb-2">
         <h2 className="text-base md:text-lg font-semibold text-center text-muted-foreground">
           {isGameEnded ? (
             bothRequestedRematch ? (
@@ -347,7 +372,7 @@ function DuelGameScreen({
           )}
         </h2>
 
-        {/* Slim progress bar under header when round is live */}
+        {/* Slim progress bar when round is live */}
         {!isGameEnded && deadline && (
           <div className="mx-auto mt-2 w-full max-w-xl h-1.5 rounded bg-slate-200 overflow-hidden">
             <div
@@ -379,43 +404,62 @@ function DuelGameScreen({
             )}
           </div>
         )}
-      </header>
+      </div>
 
       {/* Main */}
-      <main className="flex-1 px-4 pb-2" style={{ minHeight: 0 }}>
+      <main className="flex-1 min-h-0 px-4 pb-2">
         {isMobile ? (
-          <MobileBoardSwitcher
-            currentView={mobileView}
-            onViewChange={setMobileView}
-            myBoard={{
-              guesses: me?.guesses || [],
-              activeGuess: currentGuess,
-              errorShakeKey: shakeKey,
-              errorActiveRow: showActiveError,
-              secretWord: mySecretWord,
-              secretWordState: mySecretState,
-              onSecretWordSubmit: canSetSecret ? handleSecretSubmit : null, // harmless (Board ignores click)
-              isOwnBoard: true,
-              maxTile: 200,
-              minTile: 60,
-              player: me,
-              secretErrorActive: secretErrorActive,
-              secretErrorKey: secretErrorKey,
-            }}
-            opponentBoard={{
-              guesses: opponent?.guesses || [],
-              activeGuess: "",
-              secretWord: oppSecretWord,
-              secretWordState: oppSecretState,
-              isOwnBoard: false,
-              maxTile: 200,
-              minTile: 60,
-              player: opponent,
-            }}
-            className="h-full"
-          />
+          <div className="h-full flex flex-col">
+            <MobileBoardSwitcher
+              currentView={mobileView}
+              onViewChange={setMobileView}
+              myBoard={{
+                guesses: me?.guesses || [],
+                activeGuess: currentGuess,
+                errorShakeKey: shakeKey,
+                errorActiveRow: showActiveError,
+                secretWord: mySecretWord,
+                secretWordState: mySecretState,
+                onSecretWordSubmit: canSetSecret ? handleSecretSubmit : null, // harmless (Board ignores click)
+                isOwnBoard: true,
+                maxTile: tileCap,
+                minTile: 50,
+                player: me,
+                secretErrorActive: secretErrorActive,
+                secretErrorKey: secretErrorKey,
+              }}
+              opponentBoard={{
+                guesses: opponent?.guesses || [],
+                activeGuess: "",
+                secretWord: oppSecretWord,
+                secretWordState: oppSecretState,
+                isOwnBoard: false,
+                maxTile: tileCap,
+                minTile: 50,
+                player: opponent,
+              }}
+              className="flex-1"
+            />
+
+            {/* Mobile generate button */}
+            {canSetSecret && mobileView === "me" && (
+              <div className="flex justify-center py-2">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={handleGenerateSecret}
+                  disabled={genBusy}
+                  title="Generate a random word"
+                  aria-label="Generate a random word"
+                  className="px-4 py-2 text-sm rounded-lg border border-slate-300 bg-white hover:bg-slate-50 shadow-sm active:scale-95 flex items-center gap-2"
+                >
+                  {genBusy ? "…" : "🎲"} Generate
+                </button>
+              </div>
+            )}
+          </div>
         ) : (
-          <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 place-items-center">
+          <div className="w-full h-full min-h-0 grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 place-items-center">
             {/* YOU */}
             <section className="w-full flex flex-col">
               <div className="w-full max-w-[min(92vw,820px)]">
@@ -445,7 +489,7 @@ function DuelGameScreen({
                   fontWeight: 600,
                   letterSpacing: "0.06em",
                   textTransform: "uppercase",
-                  paddingTop: "6px",
+                  paddingTop: "2px",
                 }}
               >
                 Secret Word
@@ -458,23 +502,52 @@ function DuelGameScreen({
               )}
 
               <div className="flex-1 w-full flex items-center justify-center min-h-0">
-                <div className="w-full max-w-[min(99.8vw,2000px)] h-full flex items-center justify-center">
-                  <Board
-                    guesses={me?.guesses || []}
-                    activeGuess={currentGuess}
-                    errorShakeKey={shakeKey}
-                    errorActiveRow={showActiveError}
-                    secretWord={mySecretWord}
-                    secretWordState={mySecretState}
-                    onSecretWordSubmit={
-                      canSetSecret ? handleSecretSubmit : null
-                    }
-                    isOwnBoard={true}
-                    maxTile={150}
-                    minTile={50}
-                    secretErrorActive={secretErrorActive}
-                    secretErrorKey={secretErrorKey}
-                  />
+                <div className="relative inline-block">
+                  <div
+                    className="relative w-full h-full flex items-center justify-center"
+                    style={{ maxWidth: "min(96vw, 2000px)", maxHeight: "100%" }}
+                  >
+                    <Board
+                      guesses={me?.guesses || []}
+                      activeGuess={currentGuess}
+                      errorShakeKey={shakeKey}
+                      errorActiveRow={showActiveError}
+                      secretWord={mySecretWord}
+                      secretWordState={mySecretState}
+                      onSecretWordSubmit={
+                        canSetSecret ? handleSecretSubmit : null
+                      }
+                      isOwnBoard={true}
+                      maxTile={tileCap}
+                      minTile={50}
+                      secretErrorActive={secretErrorActive}
+                      secretErrorKey={secretErrorKey}
+                      onMeasure={setBoardMetrics}
+                    />
+                  </div>
+
+                  {/* 🎲 generate button — appears only while you're setting your secret */}
+                  {/* 🎲 exactly aligned with the secret row center */}
+                  {canSetSecret && boardMetrics && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()} // keep keyboard focus
+                      onClick={handleGenerateSecret}
+                      disabled={genBusy}
+                      title="Generate a random word"
+                      aria-label="Generate a random word"
+                      className="absolute left-full ml-3 w-10 h-10 rounded-full border border-slate-300 bg-white hover:bg-slate-50 shadow-sm active:scale-95 grid place-items-center"
+                      style={{
+                        // align to secret row’s vertical center
+                        top:
+                          (boardMetrics.padding ?? 0) +
+                          (boardMetrics.tile ?? 0) / 2 -
+                          20,
+                      }}
+                    >
+                      {genBusy ? "…" : "🎲"}
+                    </button>
+                  )}
                 </div>
               </div>
             </section>
@@ -510,21 +583,23 @@ function DuelGameScreen({
                   fontWeight: 600,
                   letterSpacing: "0.06em",
                   textTransform: "uppercase",
-                  paddingTop: "6px",
                 }}
               >
                 Secret Word
               </div>
 
               <div className="flex-1 w-full flex items-center justify-center min-h-0">
-                <div className="w-full max-w-[min(99.8vw,2000px)] h-full flex items-center justify-center">
+                <div
+                  className="w-full h-full flex items-center justify-center"
+                  style={{ maxWidth: "min(96vw, 2000px)", maxHeight: "100%" }}
+                >
                   <Board
                     guesses={opponent?.guesses || []}
                     activeGuess=""
                     secretWord={oppSecretWord}
                     secretWordState={oppSecretState}
                     isOwnBoard={false}
-                    maxTile={150}
+                    maxTile={tileCap}
                     minTile={50}
                   />
                 </div>

@@ -2,6 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+  
+  .bg-gradient-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+  }
+  
+  .bg-clip-text {
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  
+  .drop-shadow-glow {
+    filter: drop-shadow(0 0 20px rgba(102, 126, 234, 0.3));
+  }
+  
+  .shadow-glow {
+    box-shadow: 0 0 30px rgba(102, 126, 234, 0.2);
+  }
+  
+  .shadow-competitive {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -28,7 +55,11 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem}
+    --radius: 0.5rem;
+    --kbd-idle-bg: #d3d6da;
+    --kbd-idle-fg: #111;
+    --kbd-idle-border: #c4c7cb;
+}
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -53,7 +84,11 @@
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%}
+    --chart-5: 340 75% 55%;
+    --kbd-idle-bg: #565758;
+    --kbd-idle-fg: #fff;
+    --kbd-idle-border: #3a3a3c;
+}
 }
 
 @layer base {

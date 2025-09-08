@@ -244,44 +244,42 @@ function BattleGameScreen({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  const roundActive = !!room?.battle?.started;
-  const roundFinished = !!(room?.battle?.winner || room?.battle?.reveal);
+  // Debug logging to verify server payload
+  useEffect(() => {
+    if (room?.battle) {
+      console.log("client battle:", {
+        started: room.battle.started,
+        winner: room.battle.winner,
+        lastRevealedWord: room.battle.lastRevealedWord,
+        hasSecret: room.battle.hasSecret,
+        secret: room.battle.secret,
+      });
+      console.log("Full room object:", room);
+    }
+  }, [room?.battle]);
 
-  // Prevent leaking the word before the round is finished
+  const roundActive = !!room?.battle?.started;
+  const lastWord = room?.battle?.lastRevealedWord ?? null;
+  const roundFinished = !roundActive && !!lastWord;
+
+  console.log("[DEBUG] BattleGameScreen state:", {
+    roundActive,
+    lastWord,
+    roundFinished,
+    battleStarted: room?.battle?.started,
+    battleWinner: room?.battle?.winner,
+  });
+
   const correctWord = useMemo(
-    () =>
-      roundFinished ? room?.battle?.secret || room?.battle?.revealedWord : null,
-    [roundFinished, room?.battle?.secret, room?.battle?.revealedWord]
+    () => (roundFinished ? lastWord : null),
+    [roundFinished, lastWord]
   );
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
-      {/* Header */}
-      <header className="px-4 pt-4 pb-4">
+      {/* Game Status */}
+      <div className="px-4 pt-4 pb-4">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                W+
-              </div>
-              <h1 className="text-lg font-bold text-slate-800">WordlePlus</h1>
-            </div>
-
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg">
-              <span className="text-xs text-slate-600 font-medium">Room:</span>
-              <span className="font-mono font-bold text-slate-800 text-sm">
-                {room?.id}
-              </span>
-              <button
-                onClick={() => navigator.clipboard.writeText(room?.id || "")}
-                className="text-slate-500 hover:text-slate-700 transition-colors"
-                aria-label="Copy room ID"
-              >
-                📋
-              </button>
-            </div>
-          </div>
-
           <h2 className="text-2xl font-bold text-slate-800 text-center mb-1">
             Battle Royale
           </h2>
@@ -308,7 +306,7 @@ function BattleGameScreen({
             </div>
           )}
         </div>
-      </header>
+      </div>
 
       {/* Main */}
       <main className="flex-1 px-4 pb-4" style={{ minHeight: 0 }}>

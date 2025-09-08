@@ -1,17 +1,18 @@
 // client/src/api.js
+const BASE =
+  import.meta.env.VITE_SERVER_URL ||
+  (import.meta.env.DEV
+    ? "http://localhost:8080"
+    : "https://amusing-endurance-production.up.railway.app");
+
 export async function validateWord(word) {
   // Ensure word is a valid string
   if (!word || typeof word !== "string") {
     return { valid: false, error: "Invalid word format" };
   }
 
-  const baseUrl =
-    process.env.NODE_ENV === "development"
-      ? "http://localhost:8080" // Local development backend
-      : "https://amusing-endurance-production.up.railway.app"; // Production backend
-
   const response = await fetch(
-    `${baseUrl}/api/validate?word=${word.toLowerCase()}`,
+    `${BASE}/api/validate?word=${word.toLowerCase()}`,
     {
       method: "GET",
       headers: {
@@ -25,4 +26,11 @@ export async function validateWord(word) {
   }
 
   return response.json();
+}
+
+export async function getRandomWord() {
+  const r = await fetch(`${BASE}/api/random?letters=5`);
+  if (!r.ok) throw new Error("random failed");
+  const j = await r.json();
+  return (j.word || "").toUpperCase();
 }

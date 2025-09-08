@@ -139,16 +139,14 @@ function HostSpectateScreen({
                 Enter a word to start the game.
               </p>
             )}
-            <SecretWordInputRow
-              onSubmit={onWordSubmit}
-              submitHint={
-                roundFinished
-                  ? "Press Enter to start new round"
-                  : "Press Enter to start"
-              }
-              className="mt-2"
-              size={62}
-            />
+            {!room?.battle?.started && (
+              <SecretWordInputRow
+                onSubmit={onWordSubmit}
+                submitHint="Press Enter to set word"
+                showGenerate={true}
+                size={64}
+              />
+            )}
           </>
         )}
       </div>
