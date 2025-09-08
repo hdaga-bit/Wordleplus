@@ -182,9 +182,9 @@ export default function Board({
                 // Flip animation delay for reveal effect
                 const flipDelay = secretWordReveal ? i * 100 : 0; // 100ms delay between each tile
 
-                let bg = "#fff",
-                  color = "#000",
-                  border = "1px solid #ccc";
+                let bg = "var(--tile-empty-bg)",
+                  color = "var(--tile-text)",
+                  border = "1px solid var(--tile-empty-border)";
 
                 if (secretWordState === "typing" && isEmpty && !isOwnBoard) {
                   bg = "#000";
@@ -195,6 +195,7 @@ export default function Board({
                   color = "#1976d2";
                   border = "1px solid #1976d2";
                 } else if (isActive) {
+                  bg = "var(--tile-typed-bg)";
                   border = "1px solid #999";
                 }
 
@@ -317,22 +318,23 @@ export default function Board({
 
                   const flipDelay = shouldFlip ? i * 100 : 0; // 100ms delay between each tile
 
-                  let bg = "#fff",
-                    color = "#000",
-                    border = "1px solid #ccc";
+                  let bg = "var(--tile-empty-bg)",
+                    color = "var(--tile-text)",
+                    border = "1px solid var(--tile-empty-border)";
                   if (state === "green") {
-                    bg = "#6aaa64";
-                    color = "#fff";
-                    border = "1px solid #6aaa64";
+                    bg = "var(--tile-correct-bg)";
+                    color = "var(--tile-correct-fg)";
+                    border = "1px solid var(--tile-correct-bg)";
                   } else if (state === "yellow") {
-                    bg = "#c9b458";
-                    color = "#fff";
-                    border = "1px solid #c9b458";
+                    bg = "var(--tile-present-bg)";
+                    color = "var(--tile-present-fg)";
+                    border = "1px solid var(--tile-present-bg)";
                   } else if (state === "gray") {
-                    bg = "#787c7e";
-                    color = "#fff";
-                    border = "1px solid #787c7e";
+                    bg = "var(--tile-absent-bg)";
+                    color = "var(--tile-absent-fg)";
+                    border = "1px solid var(--tile-absent-bg)";
                   } else if (isActive && ch.trim() !== "") {
+                    bg = "var(--tile-typed-bg)";
                     border = "1px solid #999";
                   }
 

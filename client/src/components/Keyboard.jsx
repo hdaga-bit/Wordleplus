@@ -51,19 +51,19 @@ export default function Keyboard({
       bg:
         typeof window !== "undefined"
           ? getComputedStyle(document.documentElement)
-              .getPropertyValue("--kbd-idle-bg")
+              .getPropertyValue("--key-idle-bg")
               .trim() || BOARD_COLORS.idleLight.bg
           : BOARD_COLORS.idleLight.bg,
       fg:
         typeof window !== "undefined"
           ? getComputedStyle(document.documentElement)
-              .getPropertyValue("--kbd-idle-fg")
+              .getPropertyValue("--key-idle-fg")
               .trim() || BOARD_COLORS.idleLight.fg
           : BOARD_COLORS.idleLight.fg,
       border:
         typeof window !== "undefined"
           ? getComputedStyle(document.documentElement)
-              .getPropertyValue("--kbd-idle-border")
+              .getPropertyValue("--key-idle-border")
               .trim() || BOARD_COLORS.idleLight.border
           : BOARD_COLORS.idleLight.border,
     };
@@ -74,7 +74,27 @@ export default function Keyboard({
         : state === "present"
         ? BOARD_COLORS.present
         : state === "absent"
-        ? BOARD_COLORS.absent
+        ? {
+            // Use darker styling for used incorrect letters
+            bg:
+              typeof window !== "undefined"
+                ? getComputedStyle(document.documentElement)
+                    .getPropertyValue("--key-used-bg")
+                    .trim() || "#f1f5f9"
+                : "#f1f5f9",
+            fg:
+              typeof window !== "undefined"
+                ? getComputedStyle(document.documentElement)
+                    .getPropertyValue("--key-used-fg")
+                    .trim() || "#94a3b8"
+                : "#94a3b8",
+            border:
+              typeof window !== "undefined"
+                ? getComputedStyle(document.documentElement)
+                    .getPropertyValue("--key-used-border")
+                    .trim() || "#e2e8f0"
+                : "#e2e8f0",
+          }
         : idle;
 
     const handlePress = () => {

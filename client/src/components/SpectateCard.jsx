@@ -6,7 +6,14 @@ function SpectateCard({ player, room }) {
   const isHost = player?.id === room?.hostId;
 
   return (
-    <div className="rounded-xl border bg-white p-3 h-full flex flex-col">
+    <div
+      className="rounded-xl border p-3 h-full flex flex-col"
+      style={{
+        backgroundColor: "var(--card-bg)",
+        borderColor: "var(--card-border)",
+        color: "var(--card-text)",
+      }}
+    >
       {/* Header */}
       <div className="flex items-center gap-2">
         <div
@@ -17,13 +24,16 @@ function SpectateCard({ player, room }) {
           {isHost ? "👑" : initials}
         </div>
         <div className="min-w-0">
-          <div className="text-sm font-semibold truncate">
+          <div
+            className="text-sm font-semibold truncate"
+            style={{ color: "var(--card-text)" }}
+          >
             {player?.name || "—"}{" "}
             {isHost && (
               <span className="text-xs text-blue-600 font-medium">(Host)</span>
             )}
           </div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs" style={{ color: "var(--card-text-muted)" }}>
             {isHost
               ? "Spectating"
               : player?.done

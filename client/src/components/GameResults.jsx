@@ -648,9 +648,14 @@ export default function GameResults({ room, players = [], correctWord }) {
       <div className="text-center mb-4">
         <div className="inline-flex items-center gap-2 mb-1">
           <Trophy className="w-5 h-5 text-amber-500" />
-          <h3 className="text-xl font-bold text-slate-800">Round Results</h3>
+          <h3
+            className="text-xl font-bold"
+            style={{ color: "var(--card-text)" }}
+          >
+            Round Results
+          </h3>
         </div>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm" style={{ color: "var(--card-text-muted)" }}>
           {roundFinished
             ? winnerId
               ? `Winner: ${
@@ -675,9 +680,9 @@ export default function GameResults({ room, players = [], correctWord }) {
                   key={i}
                   className="w-12 h-14 md:w-14 md:h-16 grid place-items-center rounded-md border font-extrabold uppercase tracking-wider shadow-sm"
                   style={{
-                    backgroundColor: "#6aaa64",
-                    color: "#fff",
-                    borderColor: "#6aaa64",
+                    backgroundColor: "var(--tile-correct-bg)",
+                    color: "var(--tile-correct-fg)",
+                    borderColor: "var(--tile-correct-bg)",
                     animation: `tileFlip 0.6s ease-in-out ${i * 100}ms both`,
                   }}
                 >
@@ -687,49 +692,166 @@ export default function GameResults({ room, players = [], correctWord }) {
           </div>
         </div>
       ) : (
-        <div className="text-center text-xs text-slate-500 mb-6">
+        <div
+          className="text-center text-xs mb-6"
+          style={{ color: "var(--card-text-muted)" }}
+        >
           Word is hidden until the round ends.
         </div>
       )}
 
-      {/* Podium */}
+      {/* Podium - Physical podium structure */}
       {podium.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-          {podium.map((p, idx) => (
-            <div
-              key={p.id}
-              className={[
-                "rounded-lg border p-3 text-center",
-                idx === 0
-                  ? "bg-amber-50 border-amber-200"
-                  : idx === 1
-                  ? "bg-slate-50 border-slate-200"
-                  : "bg-orange-50 border-orange-200",
-              ].join(" ")}
-            >
-              <div className="text-2xl mb-1">
-                {idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}
-              </div>
+        <div className="flex items-end justify-center gap-2 mb-6">
+          {/* 2nd place - Left podium */}
+          {podium[1] && (
+            <div className="flex flex-col items-center">
+              {/* Player card */}
               <div
-                className={[
-                  "font-semibold truncate",
-                  p.id === winnerId ? "text-amber-800" : "text-slate-800",
-                ].join(" ")}
-                title={p.name}
+                className="rounded-lg border p-3 text-center mb-2 relative z-10"
+                style={{
+                  backgroundColor: "var(--card-bg)",
+                  borderColor: "var(--card-border)",
+                  color: "var(--card-text)",
+                  minWidth: "120px",
+                }}
               >
-                {p.name}
+                <div className="text-2xl mb-1">🥈</div>
+                <div
+                  className="font-semibold truncate text-sm"
+                  style={{ color: "var(--card-text)" }}
+                  title={podium[1].name}
+                >
+                  {podium[1].name}
+                </div>
+                <div
+                  className="text-xs mt-0.5"
+                  style={{ color: "var(--card-text-muted)" }}
+                >
+                  {podium[1].solved
+                    ? `Solved in ${podium[1].steps}`
+                    : "Not solved"}
+                </div>
               </div>
-              <div className="text-xs text-slate-600 mt-0.5">
-                {p.solved ? `Solved in ${p.steps}` : "Not solved"}
-              </div>
+              {/* Podium base */}
+              <div
+                className="w-24 h-8 rounded-t-lg border-t-2"
+                style={{
+                  backgroundColor: "var(--card-hover)",
+                  borderColor: "var(--card-border)",
+                }}
+              />
             </div>
-          ))}
+          )}
+
+          {/* 1st place - Middle podium (highest) */}
+          {podium[0] && (
+            <div className="flex flex-col items-center">
+              {/* Player card */}
+              <div
+                className="rounded-lg border p-4 text-center mb-2 relative z-10"
+                style={{
+                  backgroundColor: "var(--card-bg)",
+                  borderColor: "var(--card-border)",
+                  color: "var(--card-text)",
+                  minWidth: "140px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                }}
+              >
+                {/* Bouncing Crown */}
+                <div
+                  className="text-3xl mb-1 animate-bounce"
+                  style={{ animationDuration: "2s" }}
+                >
+                  👑
+                </div>
+                <div className="text-2xl mb-1">🥇</div>
+                <div
+                  className="font-bold truncate text-base"
+                  style={{ color: "var(--card-text)" }}
+                  title={podium[0].name}
+                >
+                  {podium[0].name}
+                </div>
+                <div
+                  className="text-xs mt-0.5"
+                  style={{ color: "var(--card-text-muted)" }}
+                >
+                  {podium[0].solved
+                    ? `Solved in ${podium[0].steps}`
+                    : "Not solved"}
+                </div>
+              </div>
+              {/* Podium base - tallest */}
+              <div
+                className="w-28 h-12 rounded-t-lg border-t-2"
+                style={{
+                  backgroundColor: "var(--card-hover)",
+                  borderColor: "var(--card-border)",
+                }}
+              />
+            </div>
+          )}
+
+          {/* 3rd place - Right podium */}
+          {podium[2] && (
+            <div className="flex flex-col items-center">
+              {/* Player card */}
+              <div
+                className="rounded-lg border p-3 text-center mb-2 relative z-10"
+                style={{
+                  backgroundColor: "var(--card-bg)",
+                  borderColor: "var(--card-border)",
+                  color: "var(--card-text)",
+                  minWidth: "120px",
+                }}
+              >
+                <div className="text-2xl mb-1">🥉</div>
+                <div
+                  className="font-semibold truncate text-sm"
+                  style={{ color: "var(--card-text)" }}
+                  title={podium[2].name}
+                >
+                  {podium[2].name}
+                </div>
+                <div
+                  className="text-xs mt-0.5"
+                  style={{ color: "var(--card-text-muted)" }}
+                >
+                  {podium[2].solved
+                    ? `Solved in ${podium[2].steps}`
+                    : "Not solved"}
+                </div>
+              </div>
+              {/* Podium base - shortest */}
+              <div
+                className="w-24 h-6 rounded-t-lg border-t-2"
+                style={{
+                  backgroundColor: "var(--card-hover)",
+                  borderColor: "var(--card-border)",
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
 
       {/* Full table */}
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600">
+      <div
+        className="overflow-hidden rounded-lg border"
+        style={{
+          borderColor: "var(--card-border)",
+          backgroundColor: "var(--card-bg)",
+        }}
+      >
+        <div
+          className="grid grid-cols-12 border-b text-xs font-semibold"
+          style={{
+            backgroundColor: "var(--card-hover)",
+            borderColor: "var(--card-border)",
+            color: "var(--card-text-muted)",
+          }}
+        >
           <div className="col-span-5 px-3 py-2">Player</div>
           <div className="col-span-3 px-3 py-2">Round</div>
           <div className="col-span-2 px-3 py-2 text-center">Wins</div>
@@ -743,9 +865,16 @@ export default function GameResults({ room, players = [], correctWord }) {
               className={[
                 "grid grid-cols-12 items-center border-b last:border-b-0",
                 "px-3 py-2 text-sm",
-                p.id === winnerId ? "bg-amber-50/60" : "bg-white",
                 p.disconnected ? "opacity-60" : "",
               ].join(" ")}
+              style={{
+                backgroundColor:
+                  p.id === winnerId
+                    ? "rgba(251, 191, 36, 0.1)"
+                    : "var(--card-bg)",
+                borderColor: "var(--card-border)",
+                color: "var(--card-text)",
+              }}
             >
               <div className="col-span-5 flex items-center gap-2 min-w-0">
                 <div

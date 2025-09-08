@@ -85,25 +85,54 @@ function HostSpectateScreen({
           {/* Leaderboard button appears always; modal shows on demand */}
           <button
             onClick={() => setShowLeaderboard(true)}
-            className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm bg-white hover:bg-slate-50"
+            className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm"
+            style={{
+              backgroundColor: "var(--card-bg)",
+              borderColor: "var(--card-border)",
+              color: "var(--card-text)",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = "var(--card-hover)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = "var(--card-bg)";
+            }}
             title="Show leaderboard"
           >
             🏆 Leaderboard
           </button>
 
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg">
-            <span className="text-xs text-slate-600 font-medium">Room:</span>
-            <span className="font-mono font-bold text-slate-800 text-sm">
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border"
+            style={{
+              backgroundColor: "var(--card-bg)",
+              borderColor: "var(--card-border)",
+            }}
+          >
+            <span
+              className="text-xs font-medium"
+              style={{ color: "var(--card-text-muted)" }}
+            >
+              Room:
+            </span>
+            <span
+              className="font-mono font-bold text-sm"
+              style={{ color: "var(--card-text)" }}
+            >
               {room?.id}
             </span>
             <button
               onClick={onCopyRoomId}
-              className="text-slate-500 hover:text-slate-700"
+              className="hover:opacity-70 transition-opacity"
+              style={{ color: "var(--card-text-muted)" }}
               aria-label="Copy room ID"
             >
               📋
             </button>
-            <span className="ml-2 text-xs text-slate-600">
+            <span
+              className="ml-2 text-xs"
+              style={{ color: "var(--card-text-muted)" }}
+            >
               {connectedCount}/{players.length} online
             </span>
           </div>
@@ -177,13 +206,27 @@ function HostSpectateScreen({
           onClick={() => setShowLeaderboard(false)}
         >
           <div
-            className="w-full max-w-md bg-white rounded-xl shadow-lg border border-slate-200 p-3"
+            className="w-full max-w-md rounded-xl shadow-lg border p-3"
+            style={{
+              backgroundColor: "var(--card-bg)",
+              borderColor: "var(--card-border)",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-2">
-              <h4 className="font-semibold text-slate-800">Leaderboard</h4>
+              <h4
+                className="font-semibold"
+                style={{ color: "var(--card-text)" }}
+              >
+                Leaderboard
+              </h4>
               <button
-                className="rounded px-2 py-1 text-sm border hover:bg-slate-50"
+                className="rounded px-2 py-1 text-sm border"
+                style={{
+                  borderColor: "var(--card-border)",
+                  color: "var(--card-text)",
+                  backgroundColor: "var(--card-hover)",
+                }}
                 onClick={() => setShowLeaderboard(false)}
               >
                 Close
@@ -193,16 +236,45 @@ function HostSpectateScreen({
               {leaderboard.map((p, i) => (
                 <div
                   key={p.id}
-                  className="flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-slate-50"
+                  className="flex items-center justify-between text-sm py-1 px-2 rounded"
+                  style={{
+                    color: "var(--card-text, #f1f5f9)",
+                    backgroundColor: "transparent",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = "var(--card-hover)";
+                    // Ensure text remains visible on hover
+                    const nameSpan = e.target.querySelector("span[title]");
+                    if (nameSpan) {
+                      nameSpan.style.color = "var(--card-text)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = "transparent";
+                    // Ensure text remains visible after hover
+                    const nameSpan = e.target.querySelector("span[title]");
+                    if (nameSpan) {
+                      nameSpan.style.color = "var(--card-text)";
+                    }
+                  }}
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-5 text-slate-500">{i + 1}.</span>
+                    <span
+                      className="w-5"
+                      style={{ color: "var(--card-text-muted, #94a3b8)" }}
+                    >
+                      {i + 1}.
+                    </span>
                     <span
                       className={[
                         "truncate",
                         p.disconnected ? "opacity-60" : "",
                       ].join(" ")}
                       title={p.name}
+                      style={{
+                        color: "var(--card-text, #f1f5f9)",
+                        fontWeight: "500",
+                      }}
                     >
                       {p.name}
                     </span>
@@ -218,7 +290,10 @@ function HostSpectateScreen({
                 </div>
               ))}
               {leaderboard.length === 0 && (
-                <div className="text-xs text-slate-500 text-center py-6">
+                <div
+                  className="text-xs text-center py-6"
+                  style={{ color: "var(--card-text-muted, #94a3b8)" }}
+                >
                   No players yet.
                 </div>
               )}

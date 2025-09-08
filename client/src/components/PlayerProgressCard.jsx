@@ -28,8 +28,13 @@ function PlayerProgressCard({ player, isCurrentPlayer = false }) {
       className={`relative p-3 rounded-lg border transition-all duration-200 ${
         isCurrentPlayer
           ? "bg-blue-50 border-blue-200 shadow-sm"
-          : "bg-white border-slate-200 hover:shadow-md"
+          : "hover:shadow-md"
       }`}
+      style={{
+        backgroundColor: isCurrentPlayer ? undefined : "var(--card-bg)",
+        borderColor: isCurrentPlayer ? undefined : "var(--card-border)",
+        color: "var(--card-text)",
+      }}
     >
       {/* Player Info Header */}
       <div className="flex items-center gap-2 mb-3">
@@ -45,13 +50,14 @@ function PlayerProgressCard({ player, isCurrentPlayer = false }) {
         <div className="flex-1 min-w-0">
           <div
             className={`text-sm font-medium truncate ${
-              isCurrentPlayer ? "text-blue-800" : "text-slate-800"
+              isCurrentPlayer ? "text-blue-800" : ""
             }`}
+            style={!isCurrentPlayer ? { color: "var(--card-text)" } : {}}
           >
             {player.name}
             {isCurrentPlayer && " (You)"}
           </div>
-          <div className="text-xs text-slate-500">
+          <div className="text-xs" style={{ color: "var(--card-text-muted)" }}>
             {isDone ? "Done!" : `${totalGuesses}/6`}
           </div>
         </div>
@@ -87,7 +93,11 @@ function PlayerProgressCard({ player, isCurrentPlayer = false }) {
               {Array.from({ length: 5 }).map((_, colIndex) => (
                 <div
                   key={colIndex}
-                  className="w-6 h-6 rounded-sm border border-slate-200 bg-slate-50"
+                  className="w-6 h-6 rounded-sm border"
+                  style={{
+                    borderColor: "var(--tile-empty-border)",
+                    backgroundColor: "var(--tile-empty-bg)",
+                  }}
                 />
               ))}
             </div>
@@ -97,7 +107,10 @@ function PlayerProgressCard({ player, isCurrentPlayer = false }) {
 
       {/* Current Status */}
       {!isDone && totalGuesses > 0 && (
-        <div className="mt-2 text-xs text-slate-500 text-center">
+        <div
+          className="mt-2 text-xs text-center"
+          style={{ color: "var(--card-text-muted)" }}
+        >
           {currentGuess ? "Just guessed!" : "Thinking..."}
         </div>
       )}

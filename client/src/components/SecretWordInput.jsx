@@ -35,7 +35,7 @@ export default function SecretWordInput({
       setWord((w) => w.slice(0, -1));
       return;
     }
-    if (k === "r" || k === "R") {
+    if (k === "Tab") {
       e.preventDefault();
       handleGenerate();
       return;

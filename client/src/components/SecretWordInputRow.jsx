@@ -37,7 +37,7 @@ export default function SecretWordInputRow({
       setValue((s) => s.slice(0, -1));
       return;
     }
-    if (k === "r" || k === "R") {
+    if (k === "Tab") {
       e.preventDefault();
       handleGenerate();
       return;
@@ -131,13 +131,13 @@ export default function SecretWordInputRow({
           const ch = value[i] || "";
           const isActive = !disabled && i === value.length;
 
-          let bg = "#f9fafb",
-            color = "#9ca3af",
-            border = "1px solid #d1d5db";
+          let bg = "var(--tile-empty-bg)",
+            color = "var(--tile-text)",
+            border = "1px solid var(--tile-empty-border)";
           if (ch) {
-            bg = "#fff";
-            color = "#111827";
-            border = "1px solid #9ca3af";
+            bg = "var(--tile-typed-bg)";
+            color = "var(--tile-text)";
+            border = "1px solid var(--tile-empty-border)";
           }
           if (isActive) {
             bg = "#e3f2fd";
@@ -173,25 +173,38 @@ export default function SecretWordInputRow({
         {showGenerate && (
           <button
             type="button"
-            className="text-xs px-2 py-1 rounded bg-slate-100 border border-slate-200 hover:bg-slate-200"
+            className="text-xs px-2 py-1 rounded border"
+            style={{
+              backgroundColor: "var(--card-bg)",
+              borderColor: "var(--card-border)",
+              color: "var(--card-text)",
+            }}
             onMouseDown={(e) => e.preventDefault()} // keep focus on tile row
             onClick={handleGenerate}
             disabled={disabled || busy}
             aria-label="Generate random word"
-            title="Generate random word (or press R)"
+            title="Generate random word (or press Tab)"
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = "var(--card-hover)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = "var(--card-bg)";
+            }}
           >
             🎲 Generate
           </button>
         )}
 
         {busy ? (
-          <span className="text-blue-600 text-xs">Validating…</span>
+          <span className="text-xs" style={{ color: "#1976d2" }}>
+            Validating…
+          </span>
         ) : (
           <span
-            className={[
-              "text-xs",
-              error ? "text-red-600" : "text-slate-500",
-            ].join(" ")}
+            className="text-xs"
+            style={{
+              color: error ? "#dc2626" : "var(--card-text-muted)",
+            }}
           >
             {error
               ? error
