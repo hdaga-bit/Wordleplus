@@ -205,11 +205,15 @@ export default function App() {
       setCurrentGuess((p) => p + key);
   };
 
-  const handleBattleKey = (key) => {
+  const handleBattleKey = async (key) => {
     if (!canGuessBattle) return;
     if (key === "ENTER") {
       if (currentGuess.length === 5) {
-        battleGuess(roomId, currentGuess, canGuessBattle);
+        const result = await battleGuess(roomId, currentGuess, canGuessBattle);
+        if (result?.error) {
+          bumpActiveRowError();
+          return;
+        }
         setCurrentGuess("");
         setShowActiveError(false);
       } else {
@@ -283,7 +287,7 @@ export default function App() {
   }, [room?.mode, isHost]);
 
   return (
-    <>
+    <div className="overflow-x-hidden">
       <Backdrop />
 
       {/* Game screens break out of main container - Full viewport */}
@@ -371,7 +375,7 @@ export default function App() {
 
       {/* Main app container for home/lobby screens - Constrained width */}
       {screen !== "game" && (
-        <div className="min-h-screen">
+        <div className="h-[100dvh] min-h-screen overflow-hidden">
           <BrandHeader
             onHomeClick={() => {
               goHome();
@@ -421,6 +425,6 @@ export default function App() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

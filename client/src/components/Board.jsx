@@ -311,12 +311,30 @@ export default function Board({
                   // Determine if this tile should flip (most recent completed guess)
                   const shouldFlip =
                     !isActive &&
-                    rowIdx === rows.data.length - 1 &&
+                    rowIdx === guesses.length - 1 &&
                     row.guess &&
                     row.guess.trim().length === 5 &&
                     guessFlipKey > 0;
 
                   const flipDelay = shouldFlip ? i * 100 : 0; // 100ms delay between each tile
+
+                  // Create dynamic animation based on tile state
+                  const getFlipAnimation = () => {
+                    if (!shouldFlip) return "none";
+
+                    const baseAnimation = `tileFlipBase 0.6s ease-in-out ${flipDelay}ms both`;
+
+                    // Add state-specific color transition
+                    if (state === "green") {
+                      return `${baseAnimation}, tileFlipToGreen 0.6s ease-in-out ${flipDelay}ms both`;
+                    } else if (state === "yellow") {
+                      return `${baseAnimation}, tileFlipToYellow 0.6s ease-in-out ${flipDelay}ms both`;
+                    } else if (state === "gray") {
+                      return `${baseAnimation}, tileFlipToGray 0.6s ease-in-out ${flipDelay}ms both`;
+                    }
+
+                    return baseAnimation;
+                  };
 
                   let bg = "var(--tile-empty-bg)",
                     color = "var(--tile-text)",
@@ -359,9 +377,7 @@ export default function Board({
                         // Prevent overflow visual jitter
                         overflow: "hidden",
                         // Flip animation for guess tiles
-                        animation: shouldFlip
-                          ? `tileFlip 0.6s ease-in-out ${flipDelay}ms both`
-                          : "none",
+                        animation: getFlipAnimation(),
                       }}
                     >
                       {ch.trim()}

@@ -39,8 +39,8 @@ function isValidWordLocal(word) {
   return /^[A-Z]{5}$/.test(w) && WORDSET.has(w);
 }
 // ---------- Duel timer ----------
-// Configure via env DUEL_ROUND_SECONDS (defaults to 180s = 3 minutes)
-const DUEL_ROUND_MS = Number(process.env.DUEL_ROUND_SECONDS || 180) * 1000;
+// Configure via env DUEL_ROUND_SECONDS (defaults to 420s = 7 minutes)
+const DUEL_ROUND_MS = Number(process.env.DUEL_ROUND_SECONDS || 420) * 1000;
 
 // ---------- Express app ----------
 const app = express();

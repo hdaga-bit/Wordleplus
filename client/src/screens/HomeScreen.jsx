@@ -36,9 +36,9 @@ export default function HomeScreen({
   };
 
   return (
-    <div className="h-[85vh] bg-gradient-to-br from-background via-background to-card">
+    <div className="h-full bg-gradient-to-br from-background via-background to-card overflow-y-auto">
       {/* Hero Section */}
-      <main className="container mx-auto px-4 py-4 h-full flex flex-col justify-center">
+      <main className="container mx-auto px-4 py-4 h-full flex flex-col justify-center max-w-4xl">
         <div className="text-center max-w-4xl mx-auto flex-1 flex flex-col justify-center">
           <div className="mb-4">
             <div className="inline-flex items-center justify-center mb-4">

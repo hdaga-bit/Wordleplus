@@ -48,9 +48,10 @@ function HostSpectateScreen({
     );
   }, [room?.battle?.winner, room?.players, players]);
 
-  // simple leaderboard data
+  // simple leaderboard data (exclude host)
   const leaderboard = useMemo(() => {
     return [...players]
+      .filter((p) => p && p.id && p.id !== room?.hostId) // Exclude host from leaderboard
       .map((p) => ({
         id: p.id,
         name: p.name || "—",
@@ -62,7 +63,7 @@ function HostSpectateScreen({
         (a, b) =>
           b.wins - a.wins || b.streak - a.streak || a.name.localeCompare(b.name)
       );
-  }, [players]);
+  }, [players, room?.hostId]);
 
   // ---- UI ----
   return (

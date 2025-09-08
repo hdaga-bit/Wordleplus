@@ -29,9 +29,12 @@ function DuelGameScreen({
   // Small delights
   const [showParticles, setShowParticles] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [showCorrectParticles, setShowCorrectParticles] = useState(false);
+  const [showStreakParticles, setShowStreakParticles] = useState(false);
   const [particlePosition, setParticlePosition] = useState({ x: 0, y: 0 });
   const [showSecretReveal, setShowSecretReveal] = useState(false);
   const [guessFlipKey, setGuessFlipKey] = useState(0);
+  const [lastStreak, setLastStreak] = useState(0);
 
   // Mobile UX
   const [mobileView, setMobileView] = useState("me");
@@ -122,6 +125,55 @@ function DuelGameScreen({
       return () => clearTimeout(timer);
     }
   }, [me?.guesses?.length]);
+
+  // Trigger particles for correct guesses
+  useEffect(() => {
+    if (me?.guesses && me.guesses.length > 0) {
+      const lastGuess = me.guesses[me.guesses.length - 1];
+      if (lastGuess && lastGuess.pattern) {
+        const hasCorrect = lastGuess.pattern.some((state) => state === "green");
+        if (hasCorrect) {
+          // Position particles at the center of my board
+          setParticlePosition({
+            x: window.innerWidth / 4, // Left side for my board
+            y: window.innerHeight / 2 - 100,
+          });
+          setShowCorrectParticles(true);
+          const timer = setTimeout(() => setShowCorrectParticles(false), 1000);
+          return () => clearTimeout(timer);
+        }
+      }
+    }
+  }, [me?.guesses?.length]);
+
+  // Trigger streak celebration particles
+  useEffect(() => {
+    if (me?.streak && me.streak > lastStreak && me.streak > 0) {
+      setLastStreak(me.streak);
+
+      // Celebrate significant streak milestones
+      const shouldCelebrate =
+        me.streak === 3 || // First milestone
+        me.streak === 5 || // Second milestone
+        me.streak === 10 || // Major milestone
+        me.streak === 15 || // Epic milestone
+        me.streak === 20 || // Legendary milestone
+        (me.streak > 20 && me.streak % 5 === 0); // Every 5 after 20
+
+      if (shouldCelebrate) {
+        setParticlePosition({
+          x: window.innerWidth / 4, // Left side for my board
+          y: window.innerHeight / 2 - 150,
+        });
+        setShowStreakParticles(true);
+
+        // Longer celebration for higher streaks
+        const duration = me.streak >= 10 ? 3000 : 2000;
+        const timer = setTimeout(() => setShowStreakParticles(false), duration);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [me?.streak, lastStreak]);
 
   // Fun particle when both secrets are set and game not yet started
   useEffect(() => {
@@ -367,6 +419,18 @@ function DuelGameScreen({
         trigger={showParticles}
         type="wordComplete"
         position={particlePosition}
+      />
+      <ParticleEffect
+        trigger={showCorrectParticles}
+        type="correctGuess"
+        position={particlePosition}
+        intensity={1.2}
+      />
+      <ParticleEffect
+        trigger={showStreakParticles}
+        type="streak"
+        position={particlePosition}
+        intensity={me?.streak >= 10 ? 2.5 : me?.streak >= 5 ? 2.0 : 1.5}
       />
       <ConfettiEffect trigger={showConfetti} />
 

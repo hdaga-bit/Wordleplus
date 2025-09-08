@@ -220,10 +220,124 @@
   }
 }
 
+/* Base flip animation (transform only) */
+@keyframes tileFlipBase {
+  0% { 
+    transform: rotateY(0deg) scale(1);
+  }
+  50% { 
+    transform: rotateY(90deg) scale(1.1);
+  }
+  100% { 
+    transform: rotateY(0deg) scale(1);
+  }
+}
+
+/* Color transitions for different tile states */
+@keyframes tileFlipToGreen {
+  0% { 
+    background-color: var(--tile-empty-bg);
+    color: var(--tile-text);
+    border: 1px solid var(--tile-empty-border);
+  }
+  50% { 
+    background-color: var(--tile-typed-bg);
+    color: var(--tile-text);
+    border: 1px solid var(--tile-empty-border);
+  }
+  100% { 
+    background-color: var(--tile-correct-bg);
+    color: var(--tile-correct-fg);
+    border: 1px solid var(--tile-correct-bg);
+  }
+}
+
+@keyframes tileFlipToYellow {
+  0% { 
+    background-color: var(--tile-empty-bg);
+    color: var(--tile-text);
+    border: 1px solid var(--tile-empty-border);
+  }
+  50% { 
+    background-color: var(--tile-typed-bg);
+    color: var(--tile-text);
+    border: 1px solid var(--tile-empty-border);
+  }
+  100% { 
+    background-color: var(--tile-present-bg);
+    color: var(--tile-present-fg);
+    border: 1px solid var(--tile-present-bg);
+  }
+}
+
+@keyframes tileFlipToGray {
+  0% { 
+    background-color: var(--tile-empty-bg);
+    color: var(--tile-text);
+    border: 1px solid var(--tile-empty-border);
+  }
+  50% { 
+    background-color: var(--tile-typed-bg);
+    color: var(--tile-text);
+    border: 1px solid var(--tile-empty-border);
+  }
+  100% { 
+    background-color: var(--tile-absent-bg);
+    color: var(--tile-absent-fg);
+    border: 1px solid var(--tile-absent-bg);
+  }
+}
+
 /* Error styling for tiles in the active row */
 .tile-error {
   border-color: hsl(var(--destructive)) !important;
   color: hsl(var(--destructive)) !important;
+}
+
+/* Cross-fade transitions */
+.fade-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fade-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+}
+
+.fade-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.fade-exit-active {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+/* Round to results transition */
+.round-to-results-enter {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.round-to-results-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.round-to-results-exit {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.round-to-results-exit-active {
+  opacity: 0;
+  transform: scale(1.05);
+  transition: opacity 0.4s ease-in, transform 0.4s ease-in;
 }
 
 

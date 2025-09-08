@@ -598,28 +598,30 @@ export default function GameResults({ room, players = [], correctWord }) {
   const winnerId = room?.battle?.winner || null;
   const roundFinished = !!winnerId || !!correctWord;
 
-  // Per-round stats from guesses vs. correctWord
+  // Per-round stats from guesses vs. correctWord (exclude host)
   const results = useMemo(() => {
     const word = (correctWord || "").toUpperCase();
-    return players.map((p) => {
-      const guesses = Array.isArray(p.guesses) ? p.guesses : [];
-      const ix =
-        word && guesses.length
-          ? guesses.findIndex((g) => (g?.guess || "").toUpperCase() === word)
-          : -1;
-      const steps = ix >= 0 ? ix + 1 : null;
-      return {
-        id: p.id,
-        name: p.name || "—",
-        guesses: guesses.length,
-        solved: steps !== null,
-        steps,
-        wins: p.wins ?? 0,
-        streak: p.streak ?? 0,
-        disconnected: !!p.disconnected,
-      };
-    });
-  }, [players, correctWord]);
+    return players
+      .filter((p) => p && p.id && p.id !== room?.hostId) // Exclude host from leaderboard
+      .map((p) => {
+        const guesses = Array.isArray(p.guesses) ? p.guesses : [];
+        const ix =
+          word && guesses.length
+            ? guesses.findIndex((g) => (g?.guess || "").toUpperCase() === word)
+            : -1;
+        const steps = ix >= 0 ? ix + 1 : null;
+        return {
+          id: p.id,
+          name: p.name || "—",
+          guesses: guesses.length,
+          solved: steps !== null,
+          steps,
+          wins: p.wins ?? 0,
+          streak: p.streak ?? 0,
+          disconnected: !!p.disconnected,
+        };
+      });
+  }, [players, correctWord, room?.hostId]);
 
   // Sort for podium / table
   const sorted = useMemo(() => {
@@ -643,33 +645,30 @@ export default function GameResults({ room, players = [], correctWord }) {
   const podium = sorted.slice(0, 3);
 
   return (
-    <div className="w-full max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="text-center mb-4">
-        <div className="inline-flex items-center gap-2 mb-1">
-          <Trophy className="w-5 h-5 text-amber-500" />
-          <h3
-            className="text-xl font-bold"
-            style={{ color: "var(--card-text)" }}
-          >
-            Round Results
-          </h3>
-        </div>
-        <p className="text-sm" style={{ color: "var(--card-text-muted)" }}>
-          {roundFinished
-            ? winnerId
-              ? `Winner: ${
-                  players.find((p) => p.id === winnerId)?.name || "Unknown"
-                }`
-              : "No winner — the word is revealed below."
-            : "Waiting for host to start the next round…"}
-        </p>
+    <div className="w-full max-w-4xl mx-auto px-4">
+      {/* Compact Status Strip */}
+      <div className="text-center mb-3">
+        {roundFinished ? (
+          <div className="inline-flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-amber-500" />
+            <span
+              className="text-sm font-semibold"
+              style={{ color: "var(--card-text)" }}
+            >
+              Round Results
+            </span>
+          </div>
+        ) : (
+          <div className="text-sm" style={{ color: "var(--card-text-muted)" }}>
+            {winnerId ? "Round in progress…" : "Waiting for host to start…"}
+          </div>
+        )}
       </div>
 
       {/* Revealed word tiles (only when we have it) */}
       {correctWord ? (
-        <div className="flex items-center justify-center mb-6">
-          <div className="grid grid-cols-5 gap-2">
+        <div className="flex items-center justify-center mb-4">
+          <div className="grid grid-cols-5 gap-1.5">
             {correctWord
               .toUpperCase()
               .padEnd(5, " ")
@@ -678,7 +677,7 @@ export default function GameResults({ room, players = [], correctWord }) {
               .map((ch, i) => (
                 <div
                   key={i}
-                  className="w-12 h-14 md:w-14 md:h-16 grid place-items-center rounded-md border font-extrabold uppercase tracking-wider shadow-sm"
+                  className="w-10 h-12 grid place-items-center rounded border font-extrabold uppercase tracking-wider text-sm"
                   style={{
                     backgroundColor: "var(--tile-correct-bg)",
                     color: "var(--tile-correct-fg)",
@@ -691,34 +690,27 @@ export default function GameResults({ room, players = [], correctWord }) {
               ))}
           </div>
         </div>
-      ) : (
-        <div
-          className="text-center text-xs mb-6"
-          style={{ color: "var(--card-text-muted)" }}
-        >
-          Word is hidden until the round ends.
-        </div>
-      )}
+      ) : null}
 
       {/* Podium - Physical podium structure */}
       {podium.length > 0 && (
-        <div className="flex items-end justify-center gap-2 mb-6">
+        <div className="flex items-end justify-center gap-1.5 mb-4">
           {/* 2nd place - Left podium */}
           {podium[1] && (
             <div className="flex flex-col items-center">
               {/* Player card */}
               <div
-                className="rounded-lg border p-3 text-center mb-2 relative z-10"
+                className="rounded border p-2 text-center mb-1.5 relative z-10"
                 style={{
                   backgroundColor: "var(--card-bg)",
                   borderColor: "var(--card-border)",
                   color: "var(--card-text)",
-                  minWidth: "120px",
+                  minWidth: "100px",
                 }}
               >
-                <div className="text-2xl mb-1">🥈</div>
+                <div className="text-lg mb-0.5">🥈</div>
                 <div
-                  className="font-semibold truncate text-sm"
+                  className="font-semibold truncate text-xs"
                   style={{ color: "var(--card-text)" }}
                   title={podium[1].name}
                 >
@@ -728,9 +720,7 @@ export default function GameResults({ room, players = [], correctWord }) {
                   className="text-xs mt-0.5"
                   style={{ color: "var(--card-text-muted)" }}
                 >
-                  {podium[1].solved
-                    ? `Solved in ${podium[1].steps}`
-                    : "Not solved"}
+                  {podium[1].solved ? `${podium[1].steps}` : "—"}
                 </div>
               </div>
               {/* Podium base */}
@@ -749,25 +739,25 @@ export default function GameResults({ room, players = [], correctWord }) {
             <div className="flex flex-col items-center">
               {/* Player card */}
               <div
-                className="rounded-lg border p-4 text-center mb-2 relative z-10"
+                className="rounded border p-3 text-center mb-1.5 relative z-10"
                 style={{
                   backgroundColor: "var(--card-bg)",
                   borderColor: "var(--card-border)",
                   color: "var(--card-text)",
-                  minWidth: "140px",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  minWidth: "120px",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
                 }}
               >
                 {/* Bouncing Crown */}
                 <div
-                  className="text-3xl mb-1 animate-bounce"
+                  className="text-2xl mb-0.5 animate-bounce"
                   style={{ animationDuration: "2s" }}
                 >
                   👑
                 </div>
-                <div className="text-2xl mb-1">🥇</div>
+                <div className="text-lg mb-0.5">🥇</div>
                 <div
-                  className="font-bold truncate text-base"
+                  className="font-bold truncate text-sm"
                   style={{ color: "var(--card-text)" }}
                   title={podium[0].name}
                 >
@@ -777,9 +767,7 @@ export default function GameResults({ room, players = [], correctWord }) {
                   className="text-xs mt-0.5"
                   style={{ color: "var(--card-text-muted)" }}
                 >
-                  {podium[0].solved
-                    ? `Solved in ${podium[0].steps}`
-                    : "Not solved"}
+                  {podium[0].solved ? `${podium[0].steps}` : "—"}
                 </div>
               </div>
               {/* Podium base - tallest */}
@@ -798,17 +786,17 @@ export default function GameResults({ room, players = [], correctWord }) {
             <div className="flex flex-col items-center">
               {/* Player card */}
               <div
-                className="rounded-lg border p-3 text-center mb-2 relative z-10"
+                className="rounded border p-2 text-center mb-1.5 relative z-10"
                 style={{
                   backgroundColor: "var(--card-bg)",
                   borderColor: "var(--card-border)",
                   color: "var(--card-text)",
-                  minWidth: "120px",
+                  minWidth: "100px",
                 }}
               >
-                <div className="text-2xl mb-1">🥉</div>
+                <div className="text-lg mb-0.5">🥉</div>
                 <div
-                  className="font-semibold truncate text-sm"
+                  className="font-semibold truncate text-xs"
                   style={{ color: "var(--card-text)" }}
                   title={podium[2].name}
                 >
@@ -818,9 +806,7 @@ export default function GameResults({ room, players = [], correctWord }) {
                   className="text-xs mt-0.5"
                   style={{ color: "var(--card-text-muted)" }}
                 >
-                  {podium[2].solved
-                    ? `Solved in ${podium[2].steps}`
-                    : "Not solved"}
+                  {podium[2].solved ? `${podium[2].steps}` : "—"}
                 </div>
               </div>
               {/* Podium base - shortest */}
@@ -838,7 +824,7 @@ export default function GameResults({ room, players = [], correctWord }) {
 
       {/* Full table */}
       <div
-        className="overflow-hidden rounded-lg border"
+        className="overflow-hidden rounded-lg border max-w-full"
         style={{
           borderColor: "var(--card-border)",
           backgroundColor: "var(--card-bg)",
@@ -852,10 +838,10 @@ export default function GameResults({ room, players = [], correctWord }) {
             color: "var(--card-text-muted)",
           }}
         >
-          <div className="col-span-5 px-3 py-2">Player</div>
-          <div className="col-span-3 px-3 py-2">Round</div>
-          <div className="col-span-2 px-3 py-2 text-center">Wins</div>
-          <div className="col-span-2 px-3 py-2 text-center">Streak</div>
+          <div className="col-span-6 px-2 py-1.5">Player</div>
+          <div className="col-span-2 px-2 py-1.5">Round</div>
+          <div className="col-span-2 px-2 py-1.5 text-center">Wins</div>
+          <div className="col-span-2 px-2 py-1.5 text-center">Streak</div>
         </div>
 
         <div className="max-h-[45vh] overflow-auto">
@@ -864,7 +850,7 @@ export default function GameResults({ room, players = [], correctWord }) {
               key={p.id}
               className={[
                 "grid grid-cols-12 items-center border-b last:border-b-0",
-                "px-3 py-2 text-sm",
+                "px-2 py-1.5 text-xs",
                 p.disconnected ? "opacity-60" : "",
               ].join(" ")}
               style={{
@@ -876,7 +862,7 @@ export default function GameResults({ room, players = [], correctWord }) {
                 color: "var(--card-text)",
               }}
             >
-              <div className="col-span-5 flex items-center gap-2 min-w-0">
+              <div className="col-span-6 flex items-center gap-2 min-w-0">
                 <div
                   className={[
                     "w-1.5 h-1.5 rounded-full",
@@ -892,34 +878,23 @@ export default function GameResults({ room, players = [], correctWord }) {
                 </span>
               </div>
 
-              <div className="col-span-3 text-slate-700">
-                {p.solved ? (
-                  <span className="inline-flex items-center gap-1 text-emerald-700">
-                    ✅ <span>Solved in {p.steps}</span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-slate-600">
-                    ❌ <span>Not solved</span>
-                  </span>
-                )}
+              <div className="col-span-2 text-xs">
+                {p.solved ? `${p.steps}` : `${p.guesses}`}
               </div>
 
-              <div className="col-span-2 text-center">
-                <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {p.wins}
-                </span>
-              </div>
+              <div className="col-span-2 text-center text-xs">{p.wins}</div>
 
-              <div className="col-span-2 text-center">
-                <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  {p.streak}
-                </span>
+              <div className="col-span-2 text-center text-xs">
+                {p.streak || 0}
               </div>
             </div>
           ))}
 
           {sorted.length === 0 && (
-            <div className="text-center text-xs text-slate-500 py-6">
+            <div
+              className="text-center text-xs py-4"
+              style={{ color: "var(--card-text-muted)" }}
+            >
               No players yet.
             </div>
           )}
