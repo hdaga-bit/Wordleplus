@@ -118,6 +118,26 @@
   animation: guess-shake 0.6s ease both;
 }
 
+/* Tile flip animation for word reveal */
+@keyframes tileFlip {
+  0% { 
+    transform: rotateY(0deg) scale(1);
+    background-color: #fff;
+    color: #000;
+  }
+  50% { 
+    transform: rotateY(90deg) scale(1.1);
+    background-color: #f0f0f0;
+    color: #666;
+  }
+  100% { 
+    transform: rotateY(0deg) scale(1);
+    background-color: #6aaa64;
+    color: #fff;
+    border: 1px solid #6aaa64;
+  }
+}
+
 /* Error styling for tiles in the active row */
 .tile-error {
   border-color: hsl(var(--destructive)) !important;

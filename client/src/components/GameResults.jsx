@@ -673,7 +673,13 @@ export default function GameResults({ room, players = [], correctWord }) {
               .map((ch, i) => (
                 <div
                   key={i}
-                  className="w-12 h-14 md:w-14 md:h-16 grid place-items-center rounded-md border border-blue-300 bg-blue-50 text-blue-700 font-extrabold uppercase tracking-wider shadow-sm"
+                  className="w-12 h-14 md:w-14 md:h-16 grid place-items-center rounded-md border font-extrabold uppercase tracking-wider shadow-sm"
+                  style={{
+                    backgroundColor: "#6aaa64",
+                    color: "#fff",
+                    borderColor: "#6aaa64",
+                    animation: `tileFlip 0.6s ease-in-out ${i * 100}ms both`,
+                  }}
                 >
                   {ch.trim()}
                 </div>

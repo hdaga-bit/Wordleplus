@@ -26,6 +26,9 @@ export default function Board({
   secretErrorKey = 0,
   secretErrorActive = false,
   onMeasure = () => {},
+  // animation
+  secretWordReveal = false, // trigger flip animation for secret word reveal
+  guessFlipKey = 0, // trigger flip animation for the most recent guess
 }) {
   // --- Build 6 rows (guesses + active + empty)
   const rows = useMemo(() => {
@@ -176,6 +179,9 @@ export default function Board({
                 const isActive =
                   secretWordState === "typing" && isEmpty && i === typingLen;
 
+                // Flip animation delay for reveal effect
+                const flipDelay = secretWordReveal ? i * 100 : 0; // 100ms delay between each tile
+
                 let bg = "#fff",
                   color = "#000",
                   border = "1px solid #ccc";
@@ -233,6 +239,8 @@ export default function Board({
                       animation:
                         secretWordState === "typing" && isEmpty
                           ? "pulse 1.5s ease-in-out infinite"
+                          : secretWordReveal
+                          ? `tileFlip 0.6s ease-in-out ${flipDelay}ms both`
                           : "none",
                     }}
                     onClick={
@@ -299,6 +307,16 @@ export default function Board({
                   const ch = row.guess?.[i] || "";
                   const state = row.pattern?.[i] || "empty";
 
+                  // Determine if this tile should flip (most recent completed guess)
+                  const shouldFlip =
+                    !isActive &&
+                    rowIdx === rows.data.length - 1 &&
+                    row.guess &&
+                    row.guess.trim().length === 5 &&
+                    guessFlipKey > 0;
+
+                  const flipDelay = shouldFlip ? i * 100 : 0; // 100ms delay between each tile
+
                   let bg = "#fff",
                     color = "#000",
                     border = "1px solid #ccc";
@@ -338,6 +356,10 @@ export default function Board({
                         borderRadius: 6,
                         // Prevent overflow visual jitter
                         overflow: "hidden",
+                        // Flip animation for guess tiles
+                        animation: shouldFlip
+                          ? `tileFlip 0.6s ease-in-out ${flipDelay}ms both`
+                          : "none",
                       }}
                     >
                       {ch.trim()}

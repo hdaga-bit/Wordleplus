@@ -237,6 +237,7 @@ function BattleGameScreen({
   onKeyPress,
 }) {
   const [isMobile, setIsMobile] = useState(false);
+  const [guessFlipKey, setGuessFlipKey] = useState(0);
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
@@ -274,6 +275,17 @@ function BattleGameScreen({
     () => (roundFinished ? lastWord : null),
     [roundFinished, lastWord]
   );
+
+  // Trigger guess flip animation when a new guess is added
+  useEffect(() => {
+    if (me?.guesses && me.guesses.length > 0) {
+      // Small delay to let the guess state update
+      const timer = setTimeout(() => {
+        setGuessFlipKey((prev) => prev + 1);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [me?.guesses?.length]);
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
@@ -346,6 +358,7 @@ function BattleGameScreen({
                   minTile={56}
                   gap={10}
                   padding={12}
+                  guessFlipKey={guessFlipKey}
                 />
               </div>
             ) : (

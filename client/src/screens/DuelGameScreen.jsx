@@ -30,6 +30,8 @@ function DuelGameScreen({
   const [showParticles, setShowParticles] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [particlePosition, setParticlePosition] = useState({ x: 0, y: 0 });
+  const [showSecretReveal, setShowSecretReveal] = useState(false);
+  const [guessFlipKey, setGuessFlipKey] = useState(0);
 
   // Mobile UX
   const [mobileView, setMobileView] = useState("me");
@@ -96,6 +98,30 @@ function DuelGameScreen({
       return () => clearTimeout(t);
     }
   }, [bothRequestedRematch]);
+
+  // Trigger secret word reveal animation when game ends
+  useEffect(() => {
+    if (isGameEnded && revealNow) {
+      // Small delay to let the game end state settle
+      const timer = setTimeout(() => {
+        setShowSecretReveal(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    } else {
+      setShowSecretReveal(false);
+    }
+  }, [isGameEnded, revealNow]);
+
+  // Trigger guess flip animation when a new guess is added
+  useEffect(() => {
+    if (me?.guesses && me.guesses.length > 0) {
+      // Small delay to let the guess state update
+      const timer = setTimeout(() => {
+        setGuessFlipKey((prev) => prev + 1);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [me?.guesses?.length]);
 
   // Fun particle when both secrets are set and game not yet started
   useEffect(() => {
@@ -170,9 +196,11 @@ function DuelGameScreen({
     function calc() {
       // heights we must leave for non-board UI (rough but safe)
       const statusH = 68; // "Fewest guesses wins" + timer
-      const footerH = canSetSecret || canGuess ? 220 : 96; // keyboard vs message
-      const vpad = 24; // page paddings/margins
-      const available = window.innerHeight - (statusH + footerH + vpad);
+      const footerH = 60; // rematch button or waiting message
+      const keyboardH = canSetSecret || canGuess ? 180 : 0; // compact keyboard height
+      const vpad = 16; // reduced page paddings/margins
+      const available =
+        window.innerHeight - (statusH + footerH + keyboardH + vpad);
 
       // tile that fits vertically inside 'available'
       const best = Math.floor((available - PAD * 2 - GAP * (ROWS - 1)) / ROWS);
@@ -332,7 +360,7 @@ function DuelGameScreen({
     : "empty";
   return (
     <div
-      className="min-h-dvh w-full overflow-hidden flex flex-col bg-background relative"
+      className="min-h-dvh w-full overflow-hidden grid grid-rows-[auto_1fr_auto] bg-background relative"
       {...swipeGestures}
     >
       <ParticleEffect
@@ -343,34 +371,53 @@ function DuelGameScreen({
       <ConfettiEffect trigger={showConfetti} />
 
       {/* Game Status */}
-      <div className="px-4 pt-3 pb-2">
-        <h2 className="text-base md:text-lg font-semibold text-center text-muted-foreground">
-          {isGameEnded ? (
-            bothRequestedRematch ? (
-              "Rematch starting..."
+      <div className="px-4 pb-2">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-base md:text-lg font-semibold text-center text-muted-foreground flex-1">
+            {isGameEnded ? (
+              bothRequestedRematch ? (
+                "Rematch starting..."
+              ) : (
+                "Game ended - ready for rematch?"
+              )
             ) : (
-              "Game ended - ready for rematch?"
-            )
-          ) : (
-            <>
-              Fewest guesses wins
-              {deadline && (
-                <span
-                  className={[
-                    "ml-2 font-mono px-2 py-0.5 rounded border",
-                    low
-                      ? "bg-red-100 text-red-700 border-red-200"
-                      : warn
-                      ? "bg-amber-100 text-amber-700 border-amber-200"
-                      : "bg-slate-100 text-slate-700 border-slate-200",
-                  ].join(" ")}
-                >
-                  {timerLabel}
-                </span>
-              )}
-            </>
-          )}
-        </h2>
+              <>
+                {deadline && (
+                  <span
+                    className={[
+                      "ml-2 font-mono px-2 py-0.5 rounded border",
+                      low
+                        ? "bg-red-100 text-red-700 border-red-200"
+                        : warn
+                        ? "bg-amber-100 text-amber-700 border-amber-200"
+                        : "bg-slate-100 text-slate-700 border-slate-200",
+                    ].join(" ")}
+                  >
+                    {timerLabel}
+                  </span>
+                )}
+              </>
+            )}
+          </h2>
+
+          {/* Room ID Display */}
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg">
+            <span className="text-xs text-slate-600 font-medium">Room:</span>
+            <span className="font-mono font-bold text-slate-800 text-sm">
+              {room?.id}
+            </span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(room?.id || "");
+              }}
+              className="text-slate-500 hover:text-slate-700 transition-colors"
+              aria-label="Copy room ID"
+              title="Copy room ID"
+            >
+              📋
+            </button>
+          </div>
+        </div>
 
         {/* Slim progress bar when round is live */}
         {!isGameEnded && deadline && (
@@ -407,7 +454,7 @@ function DuelGameScreen({
       </div>
 
       {/* Main */}
-      <main className="flex-1 min-h-0 px-4 pb-2">
+      <main className="px-4 py-2 min-h-0">
         {isMobile ? (
           <div className="h-full flex flex-col">
             <MobileBoardSwitcher
@@ -427,6 +474,8 @@ function DuelGameScreen({
                 player: me,
                 secretErrorActive: secretErrorActive,
                 secretErrorKey: secretErrorKey,
+                secretWordReveal: showSecretReveal,
+                guessFlipKey: guessFlipKey,
               }}
               opponentBoard={{
                 guesses: opponent?.guesses || [],
@@ -437,6 +486,8 @@ function DuelGameScreen({
                 maxTile: tileCap,
                 minTile: 50,
                 player: opponent,
+                secretWordReveal: showSecretReveal,
+                guessFlipKey: guessFlipKey,
               }}
               className="flex-1"
             />
@@ -461,7 +512,7 @@ function DuelGameScreen({
         ) : (
           <div className="w-full h-full min-h-0 grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 place-items-center">
             {/* YOU */}
-            <section className="w-full flex flex-col">
+            <section className="w-full flex flex-col ">
               <div className="w-full max-w-[min(92vw,820px)]">
                 <DuelPlayerCard
                   name={me?.name || "You"}
@@ -523,6 +574,8 @@ function DuelGameScreen({
                       secretErrorActive={secretErrorActive}
                       secretErrorKey={secretErrorKey}
                       onMeasure={setBoardMetrics}
+                      secretWordReveal={showSecretReveal}
+                      guessFlipKey={guessFlipKey}
                     />
                   </div>
 
@@ -583,6 +636,7 @@ function DuelGameScreen({
                   fontWeight: 600,
                   letterSpacing: "0.06em",
                   textTransform: "uppercase",
+                  paddingTop: "2px",
                 }}
               >
                 Secret Word
@@ -601,6 +655,8 @@ function DuelGameScreen({
                     isOwnBoard={false}
                     maxTile={tileCap}
                     minTile={50}
+                    secretWordReveal={showSecretReveal}
+                    guessFlipKey={guessFlipKey}
                   />
                 </div>
               </div>
@@ -610,7 +666,7 @@ function DuelGameScreen({
       </main>
 
       {/* Footer */}
-      <footer className="shrink-0 w-full px-2 sm:px-4 pb-4 md:pb-6">
+      <footer className="w-full px-2 sm:px-4 py-2">
         <div className="mx-auto w-full max-w-5xl">
           {isGameEnded ? (
             <div className="text-center">
@@ -633,10 +689,8 @@ function DuelGameScreen({
                   : "Click to request a rematch (both players must request)"}
               </p>
             </div>
-          ) : canSetSecret || canGuess ? (
-            <Keyboard onKeyPress={handleKeyPress} letterStates={letterStates} />
-          ) : (
-            <div className="text-center py-8">
+          ) : !canSetSecret && !canGuess ? (
+            <div className="text-center py-4">
               <p className="text-lg font-medium text-slate-600">
                 {!myReady
                   ? "Set your secret word to continue..."
@@ -645,9 +699,18 @@ function DuelGameScreen({
                   : "Both players ready! Starting..."}
               </p>
             </div>
-          )}
+          ) : null}
         </div>
       </footer>
+
+      {/* Keyboard - Now in its own grid row */}
+      {(canSetSecret || canGuess) && (
+        <div className="w-full px-2 sm:px-4 py-2">
+          <div className="mx-auto w-full max-w-5xl">
+            <Keyboard onKeyPress={handleKeyPress} letterStates={letterStates} />
+          </div>
+        </div>
+      )}
 
       {/* Floating FABs */}
       {/* {isGameEnded && (
