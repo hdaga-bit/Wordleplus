@@ -3,7 +3,7 @@ const BASE =
   import.meta.env.VITE_SERVER_URL ||
   (import.meta.env.DEV
     ? "http://localhost:8080"
-    : "https://amusing-endurance-production.up.railway.app");
+    : "https://wordleplus-production.up.railway.app");
 
 export async function validateWord(word) {
   // Ensure word is a valid string
