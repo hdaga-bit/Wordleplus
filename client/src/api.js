@@ -1,9 +1,5 @@
 // client/src/api.js
-const BASE =
-  import.meta.env.VITE_SERVER_URL ||
-  (import.meta.env.DEV
-    ? "http://localhost:8080"
-    : "https://amusing-endurance-production.up.railway.app");
+import { SERVER_URL } from "./config";
 
 export async function validateWord(word) {
   // Ensure word is a valid string
@@ -12,13 +8,8 @@ export async function validateWord(word) {
   }
 
   const response = await fetch(
-    `${BASE}/api/validate?word=${word.toLowerCase()}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
+    `${SERVER_URL}/api/validate?word=${encodeURIComponent(word)}`,
+    { credentials: "omit" }
   );
 
   if (!response.ok) {
@@ -29,8 +20,10 @@ export async function validateWord(word) {
 }
 
 export async function getRandomWord() {
-  const r = await fetch(`${BASE}/api/random?letters=5`);
-  if (!r.ok) throw new Error("random failed");
-  const j = await r.json();
-  return (j.word || "").toUpperCase();
+  const res = await fetch(`${SERVER_URL}/api/random-word`, {
+    credentials: "omit",
+  });
+  const data = await res.json();
+  // support either {word:"HELLO"} or "HELLO"
+  return typeof data === "string" ? data : data.word;
 }

@@ -20,7 +20,14 @@ export function useGameActions() {
     if (!v.valid) return { error: "Invalid word" };
 
     return new Promise((resolve) => {
-      socket.emit("makeGuess", { roomId, guess: currentGuess }, resolve);
+      socket.emit("makeGuess", { roomId, guess: currentGuess }, (ack) => {
+        if (ack?.error) {
+          console.warn("[duel makeGuess] error:", ack.error);
+          resolve({ error: ack.error });
+        } else {
+          resolve(ack);
+        }
+      });
     });
   };
 
@@ -62,7 +69,15 @@ export function useGameActions() {
     if (!v.valid) return { error: "Invalid word" };
 
     return new Promise((resolve) => {
-      socket.emit("makeGuess", { roomId, guess }, resolve);
+      socket.emit("makeGuess", { roomId, guess }, (ack) => {
+        if (ack?.error) {
+          console.warn("[makeGuess] error:", ack.error);
+          // return the real error so the caller can show a specific message
+          resolve({ error: ack.error });
+        } else {
+          resolve(ack);
+        }
+      });
     });
   };
 

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { socket } from "../socket";
 
-const LS_LAST_ROOM = "wp.lastRoomId";
+const LS_ROOM = "wp.lastRoomId";
+const LS_SOCKET = "wp.lastSocketId";
 const LS_LAST_NAME = "wp.lastName";
-const LS_LAST_SOCKET = "wp.lastSocketId";
 
 export function useSocketConnection(room, setScreen) {
   const [connected, setConnected] = useState(socket.connected);
@@ -13,10 +13,7 @@ export function useSocketConnection(room, setScreen) {
   const triedResumeRef = useRef(false);
 
   // Read these once; they rarely change during a session
-  const savedRoomId = useMemo(
-    () => localStorage.getItem(LS_LAST_ROOM) || "",
-    []
-  );
+  const savedRoomId = useMemo(() => localStorage.getItem(LS_ROOM) || "", []);
   const savedName = useMemo(() => localStorage.getItem(LS_LAST_NAME) || "", []);
 
   useEffect(() => {
@@ -25,13 +22,13 @@ export function useSocketConnection(room, setScreen) {
 
       // If we already have a room in state, nothing to resume.
       if (room?.id) {
-        localStorage.setItem(LS_LAST_SOCKET, socket.id);
+        localStorage.setItem(LS_SOCKET, socket.id);
         triedResumeRef.current = true;
         setRejoinOffered(false);
         return;
       }
 
-      const oldId = localStorage.getItem(LS_LAST_SOCKET + ".old");
+      const oldId = localStorage.getItem(LS_SOCKET + ".old");
 
       // Try resume exactly once per page session
       if (!triedResumeRef.current && savedRoomId && oldId) {
@@ -41,13 +38,13 @@ export function useSocketConnection(room, setScreen) {
             // One-shot banner for this page session
             sessionStorage.setItem("wp.reconnected", "1");
             // Store the new, current socket id and clear old
-            localStorage.setItem(LS_LAST_SOCKET, socket.id);
-            localStorage.removeItem(LS_LAST_SOCKET + ".old");
+            localStorage.setItem(LS_SOCKET, socket.id);
+            localStorage.removeItem(LS_SOCKET + ".old");
 
             setScreen?.("game");
             setRejoinOffered(false);
           } else {
-            // Couldn’t resume—offer manual rejoin
+            // Couldn't resume—offer manual rejoin
             setRejoinOffered(Boolean(savedRoomId && savedName));
           }
         });
@@ -58,8 +55,8 @@ export function useSocketConnection(room, setScreen) {
     };
 
     const onDisconnect = () => {
-      const last = localStorage.getItem(LS_LAST_SOCKET);
-      if (last) localStorage.setItem(LS_LAST_SOCKET + ".old", last);
+      const last = localStorage.getItem(LS_SOCKET);
+      if (last) localStorage.setItem(LS_SOCKET + ".old", last);
       setConnected(false);
       // Allow a new resume attempt on next connect
       triedResumeRef.current = false;
@@ -77,15 +74,15 @@ export function useSocketConnection(room, setScreen) {
 
   const doRejoin = () => {
     if (!savedRoomId || !savedName) return;
-    const oldId = localStorage.getItem(LS_LAST_SOCKET + ".old");
+    const oldId = localStorage.getItem(LS_SOCKET + ".old");
 
     // Prefer resume to preserve state
     if (oldId) {
       socket.emit("resume", { roomId: savedRoomId, oldId }, (res) => {
         if (res?.ok) {
           sessionStorage.setItem("wp.reconnected", "1");
-          localStorage.setItem(LS_LAST_SOCKET, socket.id);
-          localStorage.removeItem(LS_LAST_SOCKET + ".old");
+          localStorage.setItem(LS_SOCKET, socket.id);
+          localStorage.removeItem(LS_SOCKET + ".old");
           setScreen?.("game");
           setRejoinOffered(false);
         } else {
@@ -95,8 +92,8 @@ export function useSocketConnection(room, setScreen) {
             { name: savedName, roomId: savedRoomId },
             (res2) => {
               if (res2?.ok) {
-                localStorage.setItem(LS_LAST_SOCKET, socket.id);
-                localStorage.removeItem(LS_LAST_SOCKET + ".old");
+                localStorage.setItem(LS_SOCKET, socket.id);
+                localStorage.removeItem(LS_SOCKET + ".old");
                 setScreen?.("game");
                 setRejoinOffered(false);
               }
@@ -111,7 +108,7 @@ export function useSocketConnection(room, setScreen) {
         { name: savedName, roomId: savedRoomId },
         (res2) => {
           if (res2?.ok) {
-            localStorage.setItem(LS_LAST_SOCKET, socket.id);
+            localStorage.setItem(LS_SOCKET, socket.id);
             setScreen?.("game");
             setRejoinOffered(false);
           }

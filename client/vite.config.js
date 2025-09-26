@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 // set this to your Railway public URL
-const RAILWAY = "https://amusing-endurance-production.up.railway.app";
+const RAILWAY = "https://wordleplus-production.up.railway.app";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
