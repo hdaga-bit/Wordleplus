@@ -16,7 +16,7 @@ const WORDLIST_PATH =
 
 let WORDS = [];
 let WORDSET = new Set();
-const ROUND_MS = Number(process.env.DUEL_ROUND_MS || 120000); // 2 minutes
+const ROUND_MS = Number(process.env.DUEL_ROUND_MS || 360000); // 2 minutes
 
 function loadWords() {
   const raw = fs.readFileSync(WORDLIST_PATH, "utf8");
@@ -138,12 +138,12 @@ function maybeStartDuel(roomId) {
     // clear any previous reveal from last round
     room.duelReveal = undefined;
     // start authoritative round timer
-    room.duelDeadline = Date.now() + DUEL_ROUND_MS;
+    room.duelDeadline = Date.now() + ROUND_MS;
     if (room._duelTimer) {
       clearTimeout(room._duelTimer);
       room._duelTimer = null;
     }
-    room._duelTimer = setTimeout(() => endDuelByTimeout(roomId), DUEL_ROUND_MS);
+    room._duelTimer = setTimeout(() => endDuelByTimeout(roomId), ROUND_MS);
     rooms.set(roomId, room);
     io.to(roomId).emit("roomState", sanitizeRoom(room));
   }
@@ -182,13 +182,7 @@ function endDuelByTimeout(roomId) {
     }
   }
 
-  room.started = true;
-  room.roundClosed = false;
-  room.duelReveal = undefined;
-  room.duelDeadline = Date.now() + DUEL_ROUND_MS;
-  if (room._duelTimer) clearTimeout(room._duelTimer);
-  room._duelTimer = setTimeout(() => endDuelByTimeout(roomId), DUEL_ROUND_MS);
-
+  // Don't restart - just emit final state
   io.to(roomId).emit("roomState", sanitizeRoom(room));
 }
 
@@ -263,6 +257,12 @@ function endBattleRound(room, winnerId = null) {
 
 // ---------- Socket handlers ----------
 io.on("connection", (socket) => {
+  socket.on("syncRoom", ({ roomId }, cb) => {
+    const room = rooms.get(roomId);
+    if (!room) return cb?.({ ok: false, error: "Room not found" });
+    socket.join(roomId);
+    cb?.({ ok: true, state: sanitizeRoom(room) });
+  });
   // DUEL: play again (reset room to pre-start state)
   socket.on("duelPlayAgain", ({ roomId }, cb) => {
     const room = rooms.get(roomId);
