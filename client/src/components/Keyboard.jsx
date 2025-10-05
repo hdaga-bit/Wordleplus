@@ -135,7 +135,7 @@ export default function Keyboard({
             ? "text-[11px] sm:text-xs basis-[18%] sm:basis-[10%]"
             : "text-sm sm:text-base basis-[9%] sm:basis-[7%]",
           "min-h-[44px] sm:min-h-[36px] touch-manipulation",
-          disabled && "opacity-60 cursor-not-allowed hover:scale-100"
+          disabled && "opacity-40 cursor-not-allowed hover:scale-100 grayscale"
         )}
         style={{
           background: swatch.bg,
@@ -179,6 +179,13 @@ export default function Keyboard({
         )}
       >
         <div className="px-1 pt-1 pb-2 md:px-2 md:p-0">
+          {disabled && (
+            <div className="text-center mb-2">
+              <div className="text-xs text-muted-foreground font-medium">
+                ⏳ Waiting for your turn...
+              </div>
+            </div>
+          )}
           <div className="flex flex-col gap-0.5 md:gap-1 items-center justify-center">
             {rows.map((row, idx) => (
               <div
