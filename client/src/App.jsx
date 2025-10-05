@@ -99,6 +99,7 @@ export default function App() {
   const {
     submitSecret,
     submitDuelGuess,
+    submitSharedGuess,
     duelPlayAgain,
     setWordAndStart,
     battleGuess,
@@ -192,10 +193,14 @@ export default function App() {
     if (!(canGuessDuel || canGuessShared)) return;
     if (currentGuess.length !== 5) {
       bumpActiveRowError();
-
       return;
     }
-    const v = await submitDuelGuess(roomId, currentGuess, canGuessDuel);
+    
+    // Use appropriate function based on mode
+    const v = room?.mode === "shared" 
+      ? await submitSharedGuess(roomId, currentGuess, canGuessShared)
+      : await submitDuelGuess(roomId, currentGuess, canGuessDuel);
+      
     if (v?.error) {
       bumpActiveRowError();
       return;
@@ -252,6 +257,7 @@ export default function App() {
           : null;
       if (!key) return;
       if (room?.mode === "duel") handleDuelKey(key);
+      if (room?.mode === "shared") handleDuelKey(key); // Shared mode uses same logic as duel
       if (room?.mode === "battle") {
         // Hosts type the secret word; don't capture their keys here.
         if (isHost && !room?.battle?.started) return;
@@ -266,6 +272,7 @@ export default function App() {
     isHost,
     wasHost,
     canGuessDuel,
+    canGuessShared,
     canGuessBattle,
     currentGuess,
   ]);
@@ -356,23 +363,12 @@ export default function App() {
               letterStates={letterStates}
               onKeyPress={handleDuelKey}
               onStartShared={async () => {
-                console.log("🟡 APP.JSX onStartShared called");
-                console.log("🟡 roomId:", roomId);
-                console.log("🟡 startShared function:", typeof startShared);
-                
-                try {
-                  const res = await startShared(roomId);
-                  console.log("🟡 startShared RESULT:", res);
-                  
-                  if (res?.error) {
-                    console.error("🟡 Start shared error:", res.error);
-                    setMsg(res.error || "Failed to start shared duel");
-                  }
-                  return res;
-                } catch (error) {
-                  console.error("🟡 EXCEPTION in App.jsx onStartShared:", error);
-                  return { error: error.message };
+                const res = await startShared(roomId);
+                if (res?.error) {
+                  console.error("Start shared error:", res.error);
+                  setMsg(res.error || "Failed to start shared duel");
                 }
+                return res;
               }}
               onRematch={async () => {
                 try {

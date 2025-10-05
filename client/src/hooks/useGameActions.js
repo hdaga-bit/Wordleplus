@@ -31,6 +31,25 @@ export function useGameActions() {
     });
   };
 
+  const submitSharedGuess = async (roomId, currentGuess, canGuessShared) => {
+    if (!canGuessShared) return { error: "Cannot guess right now" };
+    if (currentGuess.length !== 5) return { error: "Guess must be 5 letters" };
+
+    const v = await validateWord(currentGuess);
+    if (!v.valid) return { error: "Invalid word" };
+
+    return new Promise((resolve) => {
+      socket.emit("makeGuess", { roomId, guess: currentGuess }, (ack) => {
+        if (ack?.error) {
+          console.warn("[shared makeGuess] error:", ack.error);
+          resolve({ error: ack.error });
+        } else {
+          resolve(ack);
+        }
+      });
+    });
+  };
+
   const duelPlayAgain = (roomId) => {
     return new Promise((resolve) => {
       socket.emit("duelPlayAgain", { roomId }, resolve);
@@ -84,25 +103,16 @@ export function useGameActions() {
   return {
     submitSecret,
     submitDuelGuess,
+    submitSharedGuess,
     duelPlayAgain,
     setWordAndStart,
     battleGuess,
     // Shared duel actions
     startShared: (roomId) => {
       return new Promise((resolve) => {
-        console.log("🟢 SOCKET EMIT - Starting shared duel for room:", roomId);
-        console.log("🟢 Socket connected:", socket.connected);
-        console.log("🟢 Socket ID:", socket.id);
-        
         socket.emit("startShared", { roomId }, (response) => {
-          console.log("🟢 SOCKET RESPONSE received:", response);
           resolve(response);
         });
-        
-        // Add timeout to detect if callback never fires
-        setTimeout(() => {
-          console.log("🟢 TIMEOUT - No response after 5 seconds");
-        }, 5000);
       });
     },
   };
