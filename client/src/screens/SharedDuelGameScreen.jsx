@@ -120,32 +120,14 @@ export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPres
                 <div className="text-center">
                   <Button
                     onClick={async () => {
-                      console.log("🔴 BUTTON CLICKED - Starting debug flow");
-                      console.log("🔴 starting:", starting);
-                      console.log("🔴 canStart:", canStart);
-                      console.log("🔴 room:", room);
-                      console.log("🔴 roomId:", room?.id);
-                      
-                      if (starting || !canStart) {
-                        console.log("🔴 EARLY RETURN - starting:", starting, "canStart:", canStart);
-                        return;
-                      }
-                      
+                      if (starting || !canStart) return;
                       try {
-                        console.log("🔴 SETTING starting = true");
                         setStarting(true);
-                        
-                        console.log("🔴 CALLING onStartShared...");
                         const result = await onStartShared();
-                        
-                        console.log("🔴 onStartShared RESULT:", result);
                         if (result?.error) {
-                          console.error("🔴 Start shared error:", result.error);
+                          console.error("Start shared error:", result.error);
                         }
-                      } catch (error) {
-                        console.error("🔴 EXCEPTION in button click:", error);
                       } finally {
-                        console.log("🔴 SETTING starting = false");
                         setStarting(false);
                       }
                     }}

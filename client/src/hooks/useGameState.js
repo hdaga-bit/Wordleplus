@@ -67,7 +67,13 @@ export function useGameState(room) {
   const letterStates = useMemo(() => {
     const states = {};
     const rank = { correct: 3, present: 2, absent: 1 };
-    for (const row of me?.guesses || []) {
+    
+    // For shared mode, use all shared guesses; for other modes, use my guesses
+    const guessesToUse = room?.mode === "shared" 
+      ? room?.shared?.guesses || []
+      : me?.guesses || [];
+    
+    for (const row of guessesToUse) {
       for (let i = 0; i < 5; i++) {
         const ch = (row.guess?.[i] || "").toUpperCase();
         if (!ch) continue;
@@ -85,7 +91,7 @@ export function useGameState(room) {
       }
     }
     return states;
-  }, [me?.guesses]);
+  }, [me?.guesses, room?.mode, room?.shared?.guesses]);
 
   // ---- Victory gate (unchanged) ----
   const shouldShowVictory = useMemo(() => {
