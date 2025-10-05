@@ -5,6 +5,7 @@ import { cn } from "./lib/utils.js";
 // Extracted Components
 import HomeScreen from "./screens/HomeScreen.jsx";
 import DuelGameScreen from "./screens/DuelGameScreen.jsx";
+import SharedDuelGameScreen from "./screens/SharedDuelGameScreen.jsx";
 import BattleGameScreen from "./screens/BattleGameScreen.jsx";
 import HostSpectateScreen from "./screens/HostSpectateScreen.jsx";
 import ConnectionBar from "./components/ConnectionBar.jsx";
@@ -79,6 +80,8 @@ export default function App() {
     isHost,
     canGuessDuel,
     canGuessBattle,
+    // added in useGameState
+    canGuessShared,
     letterStates,
     shouldShowVictory,
     duelSecrets,
@@ -99,6 +102,7 @@ export default function App() {
     duelPlayAgain,
     setWordAndStart,
     battleGuess,
+    startShared,
   } = useGameActions();
 
   const {
@@ -121,6 +125,13 @@ export default function App() {
       return;
     }
 
+    if (room.mode === "shared") {
+      // show ONLY if we have a winner or the game ended
+      const shouldShow = Boolean(room.shared?.winner) || Boolean(room.shared?.lastRevealedWord);
+      setShowVictory(shouldShow);
+      return;
+    }
+
     if (room.mode === "battle") {
       // For battle mode, don't show victory modal - let host directly start new rounds
       // The game results are shown in the HostSpectateScreen instead
@@ -130,6 +141,8 @@ export default function App() {
     room?.mode,
     room?.winner,
     room?.duelReveal,
+    room?.shared?.winner,
+    room?.shared?.lastRevealedWord,
     room?.battle?.started,
     room?.battle?.winner,
     room?.battle?.reveal,
@@ -176,7 +189,7 @@ export default function App() {
   }
 
   async function handleSubmitDuelGuess() {
-    if (!canGuessDuel) return;
+    if (!(canGuessDuel || canGuessShared)) return;
     if (currentGuess.length !== 5) {
       bumpActiveRowError();
 
@@ -193,7 +206,7 @@ export default function App() {
 
   // Keyboard handlers
   const handleDuelKey = (key) => {
-    if (!canGuessDuel) return;
+    if (!(canGuessDuel || canGuessShared)) return;
     if (key === "ENTER") handleSubmitDuelGuess();
     else if (key === "BACKSPACE") setCurrentGuess((p) => p.slice(0, -1));
     else if (currentGuess.length < 5 && /^[A-Z]$/.test(key))
@@ -334,6 +347,41 @@ export default function App() {
             />
           )}
 
+          {/* SHARED DUEL */}
+          {room?.mode === "shared" && (
+            <SharedDuelGameScreen
+              room={room}
+              me={me}
+              currentGuess={currentGuess}
+              letterStates={letterStates}
+              onKeyPress={handleDuelKey}
+              onStartShared={async () => {
+                console.log("🟡 APP.JSX onStartShared called");
+                console.log("🟡 roomId:", roomId);
+                console.log("🟡 startShared function:", typeof startShared);
+                
+                try {
+                  const res = await startShared(roomId);
+                  console.log("🟡 startShared RESULT:", res);
+                  
+                  if (res?.error) {
+                    console.error("🟡 Start shared error:", res.error);
+                    setMsg(res.error || "Failed to start shared duel");
+                  }
+                  return res;
+                } catch (error) {
+                  console.error("🟡 EXCEPTION in App.jsx onStartShared:", error);
+                  return { error: error.message };
+                }
+              }}
+              onRematch={async () => {
+                try {
+                  await duelPlayAgain(roomId);
+                } catch (e) {}
+              }}
+            />
+          )}
+
           {/* BATTLE ROYALE - Host sees spectate view, players see game view */}
           {room?.mode === "battle" &&
             (viewingHost ? (
@@ -406,15 +454,39 @@ export default function App() {
                 message={msg}
               />
             )}
-            {/* Victory Modal - Only for battle mode now */}
-            {showVictory && room?.mode === "battle" && (
+            {/* Victory Modal */}
+            {showVictory && (
               <VictoryModal
-                winner={winner}
-                onClose={() => setShowVictory(false)}
-                onPlayAgain={() => {
-                  setShowVictory(false);
-                  // For battle mode, just close the modal and let host enter new word
-                }}
+                open={showVictory}
+                onOpenChange={setShowVictory}
+                mode={room?.mode}
+                winnerName={room?.mode === "shared" ? 
+                  (room?.shared?.winner && room?.shared?.winner !== "draw" ? 
+                    room?.players?.[room.shared.winner]?.name : null) :
+                  (room?.mode === "duel" ? 
+                    (room?.winner && room?.winner !== "draw" ? 
+                      room?.players?.[room.winner]?.name : null) : null)
+                }
+                leftName={room?.mode === "duel" ? 
+                  Object.values(room?.players || {})[0]?.name : null}
+                rightName={room?.mode === "duel" ? 
+                  Object.values(room?.players || {})[1]?.name : null}
+                leftSecret={room?.mode === "duel" ? 
+                  room?.duelReveal?.[Object.keys(room?.players || {})[0]] : null}
+                rightSecret={room?.mode === "duel" ? 
+                  room?.duelReveal?.[Object.keys(room?.players || {})[1]] : null}
+                battleSecret={room?.mode === "shared" ? 
+                  room?.shared?.lastRevealedWord : 
+                  room?.battle?.lastRevealedWord}
+                onPlayAgain={room?.mode === "shared" || room?.mode === "duel" ? 
+                  async () => {
+                    setShowVictory(false);
+                    try {
+                      await duelPlayAgain(roomId);
+                    } catch (e) {}
+                  } : 
+                  () => setShowVictory(false)}
+                showPlayAgain={room?.mode === "shared" || room?.mode === "duel"}
               />
             )}
           </div>

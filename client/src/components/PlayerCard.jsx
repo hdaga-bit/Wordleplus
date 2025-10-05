@@ -56,8 +56,10 @@ export default function PlayerCard({
         "flex items-center justify-between gap-3",
         "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1", // thin accent
         accentClass,
+        highlight === "active" && "shadow-[0_0_12px_rgba(99,102,241,0.8)] transition-all",
         className
       )}
+        data-active={highlight === "active"}
     >
       <div className="flex items-center gap-3 min-w-0">
         {/* Avatar */}

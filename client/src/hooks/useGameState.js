@@ -50,6 +50,10 @@ export function useGameState(room) {
   const canGuessDuel =
     room?.mode === "duel" && !!room?.started && !!me && !me.done;
 
+  // SHARED: turn-based shared board
+  const canGuessShared =
+    room?.mode === "shared" && !!room?.shared?.started && !!me && !room?.shared?.winner && room?.shared?.turn === (me?.id || null);
+
   // BATTLE: round started, I’m not host, not done, still have guesses
   const canGuessBattle =
     room?.mode === "battle" &&
@@ -125,6 +129,7 @@ export function useGameState(room) {
     opponent,
     isHost,
     canGuessDuel,
+    canGuessShared,
     canGuessBattle,
     letterStates,
     shouldShowVictory,

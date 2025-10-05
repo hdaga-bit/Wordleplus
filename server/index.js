@@ -33,6 +33,17 @@ function loadWords() {
 }
 loadWords();
 
+// Helper to pick N random words from WORDS
+function pickRandomWords(n) {
+  const out = [];
+  const pool = [...WORDS];
+  for (let i = 0; i < n && pool.length > 0; i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    out.push(pool.splice(idx, 1)[0]);
+  }
+  return out;
+}
+
 function isValidWordLocal(word) {
   if (!word) return false;
   const w = word.toUpperCase();
@@ -267,7 +278,7 @@ io.on("connection", (socket) => {
   socket.on("duelPlayAgain", ({ roomId }, cb) => {
     const room = rooms.get(roomId);
     if (!room) return cb?.({ error: "Room not found" });
-    if (room.mode !== "duel") return cb?.({ error: "Wrong mode" });
+    if (room.mode !== "duel" && room.mode !== "shared") return cb?.({ error: "Wrong mode" });
 
     // Mark this player as requesting rematch
     if (room.players[socket.id]) {
@@ -291,6 +302,7 @@ io.on("connection", (socket) => {
         // keep wins/streak
       });
 
+      // Clear mode-specific state
       room.started = false;
       resetRoundFlags(room);
       room.duelDeadline = null;
@@ -298,10 +310,64 @@ io.on("connection", (socket) => {
         clearTimeout(room._duelTimer);
         room._duelTimer = null;
       }
+
+      if (room.mode === "shared") {
+        room.shared.started = false;
+        room.shared.winner = null;
+        room.shared.guesses = [];
+        room.shared.secret = null;
+        room.shared.turn = null;
+      }
     }
 
     io.to(roomId).emit("roomState", sanitizeRoom(room));
     cb?.({ ok: true, bothRequested });
+  });
+
+  // SHARED DUEL: server picks a secret from a per-room queue and starts the round
+  socket.on("startShared", ({ roomId }, cb) => {
+    const room = rooms.get(roomId);
+    if (!room || room.mode !== "shared")
+      return cb?.({ error: "Room not found or wrong mode" });
+    
+    // Only host may start the shared round
+    if (socket.id !== room.hostId) 
+      return cb?.({ error: "Only host can start the round" });
+
+    // Ensure both players are in the room
+    const playerIds = Object.keys(room.players);
+    if (playerIds.length < 2) 
+      return cb?.({ error: "Need at least 2 players to start" });
+
+    // Don't start if already started
+    if (room.shared?.started) 
+      return cb?.({ error: "Game already started" });
+
+    // Ensure there's a queued secret
+    if (!room.shared.queue || room.shared.queue.length === 0) {
+      // refill (smaller batch)
+      room.shared.queue = pickRandomWords(3);
+    }
+
+    const secret = room.shared.queue.shift();
+    if (!secret) return cb?.({ error: "No secret available" });
+
+    room.shared.secret = secret;
+    room.shared.started = true;
+    room.shared.winner = null;
+    room.shared.guesses = [];
+    // first turn: host if present, else first player
+    room.shared.turn = room.hostId || Object.keys(room.players)[0] || null;
+    room.winner = null;
+    
+    // Log masked secret for debug.
+    try {
+      const masked = secret ? secret[0] + "***" + secret[secret.length - 1] : "(none)";
+      console.log(`[shared] startRequested room=${roomId} queueLen=${room.shared.queue.length} picked=${masked}`);
+    } catch (e) {}
+    
+    io.to(roomId).emit("roomState", sanitizeRoom(room));
+    cb?.({ ok: true });
   });
 
   // RESUME: client sends oldId + roomId after reconnect; we move their state
@@ -398,6 +464,16 @@ io.on("connection", (socket) => {
         winner: null,
         lastRevealedWord: null, // <-- new, the one true source for Results
       },
+      // Shared duel: single secret, turn-based 1v1
+      shared: {
+        secret: null,
+        started: false,
+        turn: null,
+        guesses: [], // { by, guess, pattern }
+        winner: null,
+        lastRevealedWord: null,
+        queue: [], // server-chosen upcoming secrets
+      },
     };
 
     // when creating the room:
@@ -414,6 +490,8 @@ io.on("connection", (socket) => {
       rematchRequested: false,
     };
     rooms.set(id, room);
+    // Fill shared queue with server-chosen secrets (if using shared mode later)
+    room.shared.queue = pickRandomWords(10);
     socket.join(id);
     cb?.({ roomId: id });
     io.to(id).emit("roomState", sanitizeRoom(room));
@@ -526,7 +604,7 @@ io.on("connection", (socket) => {
       return cb?.({ error: "Invalid word" });
     }
 
-    // DUEL logic
+  // DUEL logic
     if (room.mode === "duel") {
       if (!room.started) return cb?.({ error: "Game not started" });
 
@@ -580,6 +658,53 @@ io.on("connection", (socket) => {
           }
         }
       }
+      io.to(roomId).emit("roomState", sanitizeRoom(room));
+      return cb?.({ ok: true, pattern });
+    }
+
+    // SHARED DUEL logic (new mode: 'shared')
+    if (room.mode === "shared") {
+      if (!room.shared?.started) return cb?.({ error: "Game not started" });
+
+      const player = room.players[socket.id];
+      if (!player) return cb?.({ error: "Not in room" });
+
+      // enforce turn
+      if (room.shared.turn !== socket.id)
+        return cb?.({ error: "Not your turn" });
+
+      if (!room.shared.secret)
+        return cb?.({ error: "Secret not set for shared duel" });
+
+      const g = up;
+      const pattern = scoreGuess(room.shared.secret, g);
+
+      // record shared guess
+      room.shared.guesses.push({ by: socket.id, guess: g, pattern });
+
+      // if correct, set winner and stop
+      if (g === room.shared.secret) {
+        room.shared.winner = socket.id;
+        room.shared.started = false;
+        room.shared.lastRevealedWord = room.shared.secret;
+        room.winner = socket.id; // global winner for UI reuse
+        updateStatsOnWin(room, socket.id);
+      } else {
+        // if reached max guesses total (12 guesses combined), end as draw
+        const totalGuesses = room.shared.guesses.length;
+        if (totalGuesses >= 12) {
+          room.shared.started = false;
+          room.shared.winner = "draw";
+          room.winner = "draw";
+        }
+      }
+
+      // flip turn to opponent if still running
+      if (room.shared.started) {
+        const oppId = getOpponent(room, socket.id);
+        room.shared.turn = oppId || null;
+      }
+
       io.to(roomId).emit("roomState", sanitizeRoom(room));
       return cb?.({ ok: true, pattern });
     }
@@ -875,6 +1000,18 @@ function sanitizeRoom(room) {
       secret: null, // never leak current/next secret
       lastRevealedWord: lastWord, // <-- guarded value to clients
     },
+    shared:
+      room.shared
+        ? {
+            started: room.shared.started,
+            turn: room.shared.turn,
+            winner: room.shared.winner,
+            hasSecret: !!room.shared.secret,
+            // expose guesses so UI can render shared board; keep as-is
+            guesses: room.shared.guesses || [],
+            lastRevealedWord: room.shared.lastRevealedWord || null,
+          }
+        : undefined,
   };
 }
 // ---------- Start server ----------

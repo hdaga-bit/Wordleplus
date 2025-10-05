@@ -87,5 +87,23 @@ export function useGameActions() {
     duelPlayAgain,
     setWordAndStart,
     battleGuess,
+    // Shared duel actions
+    startShared: (roomId) => {
+      return new Promise((resolve) => {
+        console.log("🟢 SOCKET EMIT - Starting shared duel for room:", roomId);
+        console.log("🟢 Socket connected:", socket.connected);
+        console.log("🟢 Socket ID:", socket.id);
+        
+        socket.emit("startShared", { roomId }, (response) => {
+          console.log("🟢 SOCKET RESPONSE received:", response);
+          resolve(response);
+        });
+        
+        // Add timeout to detect if callback never fires
+        setTimeout(() => {
+          console.log("🟢 TIMEOUT - No response after 5 seconds");
+        }, 5000);
+      });
+    },
   };
 }

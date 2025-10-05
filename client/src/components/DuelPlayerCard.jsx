@@ -16,6 +16,7 @@ export function DuelPlayerCard({
   size = "sm",
   className,
   rightExtras,
+  active = false,
 }) {
   const isWinner = highlight === "winner";
 
@@ -78,7 +79,8 @@ export function DuelPlayerCard({
             scale.avatar,
             isWinner && "border-emerald-500",
             host && !isWinner && "border-indigo-500",
-            disconnected && "opacity-60 grayscale"
+            disconnected && "opacity-60 grayscale",
+            active && "shadow-[0_0_12px_rgba(99,102,241,0.8)] transition-all animate-pulse"
           )}
         >
           {avatar}
