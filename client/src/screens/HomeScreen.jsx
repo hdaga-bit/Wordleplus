@@ -49,7 +49,7 @@ export default function HomeScreen({
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground mb-4 max-w-2xl mx-auto leading-relaxed">
               The ultimate competitive Wordle experience. Battle friends in
-              duels or compete in battle royale mode.
+              duels or compete in battle royale mode. test local 
             </p>
           </div>
 
