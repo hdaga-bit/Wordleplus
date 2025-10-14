@@ -13,6 +13,15 @@ export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPres
   const myTurn = room.shared?.turn === me?.id;
   const isHost = room?.hostId === me?.id;
   const [starting, setStarting] = useState(false);
+  const [guessFlipKey, setGuessFlipKey] = useState(0);
+
+  // bump flip key when a new shared guess is added so Board can animate
+  useEffect(() => {
+    const len = (room.shared?.guesses || []).length;
+    // small debounce to let state settle
+    const t = setTimeout(() => setGuessFlipKey((k) => k + 1), 80);
+    return () => clearTimeout(t);
+  }, [room.shared?.guesses?.length]);
   
   // Check if we have enough players to start
   const playerCount = Object.keys(room?.players || {}).length;
@@ -98,17 +107,19 @@ export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPres
 
           {/* Shared board */}
           <div className="flex-1 flex items-center justify-center min-h-0">
-            <div className="w-full max-w-md">
+            <div className="w-full max-w-[min(99.8vw,1200px)] max-h-[calc(100vh-220px)] flex items-center justify-center">
               <Board
                 guesses={room.shared?.guesses || []}
                 activeGuess={currentGuess}
                 isOwnBoard={true}
-                secretWord={room.shared?.lastRevealedWord ? room.shared.lastRevealedWord : null}
-                secretWordState={room.shared?.lastRevealedWord ? 'set' : 'empty'}
-                maxTile={80}
+                // only reveal secret when round has ended
+                secretWord={!room.shared?.started && room.shared?.lastRevealedWord ? room.shared.lastRevealedWord : null}
+                secretWordState={!room.shared?.started && room.shared?.lastRevealedWord ? 'set' : 'empty'}
+                maxTile={140}
                 minTile={50}
                 players={room?.players || {}}
                 currentPlayerId={me?.id}
+                guessFlipKey={guessFlipKey}
               />
             </div>
           </div>
@@ -176,12 +187,12 @@ export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPres
       </main>
 
       {/* Keyboard */}
-      <footer className="w-full px-4 py-3 border-t border-border">
-        <div className="max-w-4xl mx-auto">
-          <Keyboard 
-            onKeyPress={handleKey} 
-            letterStates={letterStates} 
-            disabled={!myTurn || !canGuess} 
+      <footer className="w-full px-2 sm:px-4 py-3 border-t border-border fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur md:static">
+        <div className="max-w-[min(99.8vw,1200px)] mx-auto">
+          <Keyboard
+            onKeyPress={handleKey}
+            letterStates={letterStates}
+            disabled={!myTurn || !canGuess}
           />
         </div>
       </footer>

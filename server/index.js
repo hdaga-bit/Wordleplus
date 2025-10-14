@@ -317,6 +317,7 @@ io.on("connection", (socket) => {
         room.shared.guesses = [];
         room.shared.secret = null;
         room.shared.turn = null;
+        room.shared.lastRevealedWord = null;
       }
     }
 
@@ -355,6 +356,8 @@ io.on("connection", (socket) => {
     room.shared.secret = secret;
     room.shared.started = true;
     room.shared.winner = null;
+  // Clear any previous reveal so the new round starts clean
+  room.shared.lastRevealedWord = null;
     room.shared.guesses = [];
     // first turn: host if present, else first player
     room.shared.turn = room.hostId || Object.keys(room.players)[0] || null;
