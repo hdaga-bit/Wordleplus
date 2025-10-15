@@ -84,7 +84,7 @@ export default function HomeScreen({
                         : "hover:bg-primary/10"
                     }`}
                   >
-                    ⚔️ Duel (1v1)
+                    Duel (1v1)
                   </Button>
                   <Button
                     onClick={() => setMode("battle")}
@@ -95,16 +95,18 @@ export default function HomeScreen({
                         : "hover:bg-primary/10"
                     }`}
                   >
-                    👑 Battle Royale
+                    Battle Royale
                   </Button>
                   <Button
                     onClick={() => setMode("shared")}
                     variant={mode === "shared" ? "default" : "outline"}
                     className={`h-10 transition-all ${
-                      mode === "shared" ? "bg-gradient-primary hover:shadow-glow" : "hover:bg-primary/10"
+                      mode === "shared"
+                        ? "bg-gradient-primary hover:shadow-glow"
+                        : "hover:bg-primary/10"
                     }`}
                   >
-                    🤝 Shared Duel
+                    Shared Duel
                   </Button>
                 </div>
               </div>

@@ -88,7 +88,7 @@ export default function PlayerCard({
                 className="text-emerald-600"
                 aria-label="Winner"
               >
-                🏆
+                Winner
               </span>
             )}
           </div>

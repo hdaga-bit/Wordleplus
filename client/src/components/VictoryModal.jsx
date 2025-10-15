@@ -127,7 +127,7 @@ export default function VictoryModal({
               <Tiles word={battleSecret} />
               <div className="mt-4 p-3 bg-muted rounded-lg">
                 <p className="text-sm text-muted-foreground">
-                  🏆 <span className="font-semibold">{winnerName}</span> solved the shared puzzle!
+                  Congrats <span className="font-semibold">{winnerName}</span> solved the shared puzzle!
                 </p>
               </div>
             </div>

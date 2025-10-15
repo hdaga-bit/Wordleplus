@@ -96,15 +96,10 @@ export default function App() {
     rejoinOffered,
   } = useSocketConnection(room, setScreen);
 
-  const {
-    submitSecret,
-    submitDuelGuess,
-    submitSharedGuess,
-    duelPlayAgain,
-    setWordAndStart,
-    battleGuess,
-    startShared,
-  } = useGameActions();
+  const actionsByMode = useGameActions();
+  const duelActions = actionsByMode.duel;
+  const sharedActions = actionsByMode.shared;
+  const battleActions = actionsByMode.battle;
 
   const {
     createRoom,
@@ -198,8 +193,8 @@ export default function App() {
     
     // Use appropriate function based on mode
     const v = room?.mode === "shared" 
-      ? await submitSharedGuess(roomId, currentGuess, canGuessShared)
-      : await submitDuelGuess(roomId, currentGuess, canGuessDuel);
+      ? await sharedActions.submitGuess(roomId, currentGuess, canGuessShared)
+      : await duelActions.submitGuess(roomId, currentGuess, canGuessDuel);
       
     if (v?.error) {
       bumpActiveRowError();
@@ -222,7 +217,7 @@ export default function App() {
     if (!canGuessBattle) return;
     if (key === "ENTER") {
       if (currentGuess.length === 5) {
-        const result = await battleGuess(roomId, currentGuess, canGuessBattle);
+        const result = await battleActions.submitGuess(roomId, currentGuess, canGuessBattle);
         if (result?.error) {
           bumpActiveRowError();
           return;
@@ -354,7 +349,7 @@ export default function App() {
               onPlayAgain={room?.mode === "shared" || room?.mode === "duel" ?
                 async () => {
                   setShowVictory(false);
-                  try { await duelPlayAgain(roomId); } catch (e) {}
+                  try { await duelActions.playAgain(roomId); } catch (e) {}
                 } : () => setShowVictory(false)}
               showPlayAgain={room?.mode === "shared" || room?.mode === "duel"}
             />
@@ -372,14 +367,14 @@ export default function App() {
               letterStates={letterStates}
               onKeyPress={handleDuelKey}
               onSubmitSecret={async (secret) => {
-                const result = await submitSecret(roomId, secret); // { ok: true } or { error: "..." }
+                const result = await duelActions.submitSecret(roomId, secret); // { ok: true } or { error: "..." }
                 if (result?.error) setMsg(result.error);
                 return result;
               }}
               onRematch={async () => {
                 // Use the action helper that emits the correct payload shape { roomId }
                 try {
-                  await duelPlayAgain(roomId);
+                  await duelActions.playAgain(roomId);
                 } catch (e) {
                   // no-op; UI will still update via roomState events
                 }
@@ -396,7 +391,7 @@ export default function App() {
               letterStates={letterStates}
               onKeyPress={handleDuelKey}
               onStartShared={async () => {
-                const res = await startShared(roomId);
+                const res = await sharedActions.startRound(roomId);
                 if (res?.error) {
                   console.error("Start shared error:", res.error);
                   setMsg(res.error || "Failed to start shared duel");
@@ -405,8 +400,10 @@ export default function App() {
               }}
               onRematch={async () => {
                 try {
-                  await duelPlayAgain(roomId);
-                } catch (e) {}
+                  await sharedActions.playAgain(roomId);
+                } catch (e) {
+                  // no-op
+                }
               }}
             />
           )}
@@ -419,7 +416,7 @@ export default function App() {
                 room={room}
                 players={players}
                 onWordSubmit={async (word) => {
-                  await setWordAndStart(room.id, word); // emits setHostWord then startBattle
+                  await battleActions.setWordAndStart(room.id, word); // emits setHostWord then startBattle
                 }}
                 onCopyRoomId={() =>
                   navigator.clipboard.writeText(room?.id || "")
@@ -507,14 +504,20 @@ export default function App() {
                 battleSecret={room?.mode === "shared" ? 
                   room?.shared?.lastRevealedWord : 
                   room?.battle?.lastRevealedWord}
-                onPlayAgain={room?.mode === "shared" || room?.mode === "duel" ? 
-                  async () => {
+              onPlayAgain={room?.mode === "shared" || room?.mode === "duel"
+                ? async () => {
                     setShowVictory(false);
                     try {
-                      await duelPlayAgain(roomId);
-                    } catch (e) {}
-                  } : 
-                  () => setShowVictory(false)}
+                      if (room?.mode === "duel") {
+                        await duelActions.playAgain(roomId);
+                      } else {
+                        await sharedActions.playAgain(roomId);
+                      }
+                    } catch (e) {
+                      // noop
+                    }
+                  }
+                : () => setShowVictory(false)}
                 showPlayAgain={room?.mode === "shared" || room?.mode === "duel"}
               />
             )}

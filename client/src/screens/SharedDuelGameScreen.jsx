@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import Board from "../components/Board.jsx";
 import Keyboard from "../components/Keyboard.jsx";
 import PlayerCard from "../components/PlayerCard.jsx";
-import { useSwipeGestures } from "../hooks/useSwipeGestures.js";
 import { Button } from "@/components/ui/button";
 
 export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPress, letterStates, onStartShared, onRematch }) {
@@ -38,7 +37,7 @@ export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPres
     if (room.shared?.winner) {
       if (room.shared.winner === "draw") return "It's a draw!";
       const winner = room.players?.[room.shared.winner];
-      return winner?.id === me?.id ? "You won! 🏆" : `${winner?.name} won! 🏆`;
+      return winner?.id === me?.id ? "You won!" : `${winner?.name} won!`;
     }
     if (!room.shared?.started) {
       if (playerCount < 2) {
@@ -86,21 +85,19 @@ export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPres
           {/* Player cards */}
           <div className="flex gap-4 mb-6">
             <div className="flex-1">
-              <PlayerCard 
-                name={me?.name || 'You'} 
-                wins={me?.wins} 
-                streak={me?.streak} 
-                avatar={'🧑'} 
-                highlight={myTurn ? 'active' : 'none'} 
+              <PlayerCard
+                name={me?.name || "You"}
+                wins={me?.wins}
+                streak={me?.streak}
+                highlight={myTurn ? "active" : "none"}
               />
             </div>
             <div className="flex-1">
-              <PlayerCard 
-                name={opponent?.name || '—'} 
-                wins={opponent?.wins} 
-                streak={opponent?.streak} 
-                avatar={'🧑‍💻'} 
-                highlight={!myTurn && canGuess ? 'active' : 'none'} 
+              <PlayerCard
+                name={opponent?.name || "Opponent"}
+                wins={opponent?.wins}
+                streak={opponent?.streak}
+                highlight={!myTurn && canGuess ? "active" : "none"}
               />
             </div>
           </div>
