@@ -33,6 +33,16 @@ export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPres
   };
 
   // Get game status text
+  const sharedGuesses = room.shared?.guesses || [];
+  const latestGuessWord = sharedGuesses.length
+    ? (sharedGuesses[sharedGuesses.length - 1].guess || "").toUpperCase()
+    : "";
+  const normalizedCurrentGuess = (currentGuess || "").toUpperCase();
+  const activeGuessForBoard =
+    canGuess && myTurn && normalizedCurrentGuess && normalizedCurrentGuess !== latestGuessWord
+      ? currentGuess
+      : "";
+
   const getGameStatus = () => {
     if (room.shared?.winner) {
       if (room.shared.winner === "draw") return "It's a draw!";
@@ -50,11 +60,14 @@ export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPres
   };
 
   return (
-    <div className="min-h-dvh w-full overflow-hidden grid grid-rows-[auto_1fr_auto] bg-background relative">
-      <main className="px-4 py-4 min-h-0">
-        <div className="max-w-4xl mx-auto h-full flex flex-col">
+    <div
+      className="w-full flex flex-col bg-background relative overflow-hidden"
+      style={{ minHeight: "calc(100dvh - 64px)" }}
+    >
+      <main className="flex-1 px-3 md:px-4 pt-2 pb-3 min-h-0">
+        <div className="max-w-4xl mx-auto h-full flex flex-col gap-4">
           {/* Player cards */}
-          <div className="flex gap-4 mb-6">
+          <div className="flex flex-col md:flex-row gap-3 md:gap-4">
             <div className="flex-1">
               <PlayerCard
                 name={me?.name || "You"}
@@ -75,10 +88,10 @@ export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPres
 
           {/* Shared board */}
           <div className="flex-1 flex items-center justify-center min-h-0">
-            <div className="w-full max-w-[min(99.8vw,1200px)] max-h-[calc(100vh-220px)] flex items-center justify-center">
+            <div className="w-full max-w-[min(99.8vw,1200px)] max-h-[calc(100dvh-260px)] flex items-center justify-center">
               <Board
                 guesses={room.shared?.guesses || []}
-                activeGuess={currentGuess}
+                activeGuess={activeGuessForBoard}
                 isOwnBoard={true}
                 // only reveal secret when round has ended
                 secretWord={!room.shared?.started && room.shared?.lastRevealedWord ? room.shared.lastRevealedWord : null}
@@ -93,7 +106,7 @@ export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPres
           </div>
 
           {/* Game controls */}
-          <div className="mt-6 flex justify-center">
+          <div className="mt-2 flex justify-center">
             {!room.shared?.started ? (
               isHost ? (
                 <div className="text-center">
@@ -155,7 +168,7 @@ export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPres
       </main>
 
       {/* Keyboard */}
-      <footer className="w-full px-2 sm:px-4 py-3 border-t border-border fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur md:static">
+      <footer className="w-full px-2 sm:px-4 py-2 border-t border-border/40 flex-shrink-0">
         <div className="max-w-[min(99.8vw,1200px)] mx-auto">
           <Keyboard
             onKeyPress={handleKey}

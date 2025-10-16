@@ -17,7 +17,7 @@ export default function BrandHeader({
         className
       )}
     >
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-6 px-4 py-3">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-6 px-4 py-3 relative">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onHomeClick}
@@ -38,18 +38,21 @@ export default function BrandHeader({
           )}
         </div>
 
-        <div className="flex-1 flex items-center justify-center min-w-[120px]">
-          {modeLabel && (
-            <p className="text-xs sm:text-sm font-semibold tracking-[0.3em] uppercase text-muted-foreground">
-              {modeLabel}
-            </p>
-          )}
-        </div>
-
         <div className="flex items-center gap-3 min-w-0 justify-end">
           {right}
           <ThemeToggle />
         </div>
+
+        {modeLabel && (
+          <>
+            <div className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center">
+              <p className="text-xs sm:text-sm font-semibold tracking-[0.3em] uppercase text-muted-foreground text-center">
+                {modeLabel}
+              </p>
+            </div>
+            <span className="sr-only">Mode: {modeLabel}</span>
+          </>
+        )}
       </div>
     </header>
   );

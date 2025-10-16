@@ -57,6 +57,15 @@ function DuelGameScreen({
   const opponentRequestedRematch = !!opponent?.rematchRequested;
   const bothRequestedRematch = hasRequestedRematch && opponentRequestedRematch;
   const canGuess = isGameStarted && !isGameEnded;
+  const myGuesses = me?.guesses || [];
+  const latestGuessWord = myGuesses.length
+    ? (myGuesses[myGuesses.length - 1]?.guess || "").toUpperCase()
+    : "";
+  const normalizedCurrentGuess = (currentGuess || "").toUpperCase();
+  const activeGuessForMe =
+    normalizedCurrentGuess && normalizedCurrentGuess !== latestGuessWord
+      ? currentGuess
+      : "";
 
   const revealNow = isGameEnded || !!room?.duelReveal;
   // Ready should be server-driven
@@ -527,7 +536,7 @@ function DuelGameScreen({
               onViewChange={setMobileView}
               myBoard={{
                 guesses: me?.guesses || [],
-                activeGuess: currentGuess,
+                activeGuess: activeGuessForMe,
                 errorShakeKey: shakeKey,
                 errorActiveRow: showActiveError,
                 secretWord: mySecretWord,
@@ -612,7 +621,7 @@ function DuelGameScreen({
                   >
                     <Board
                       guesses={me?.guesses || []}
-                      activeGuess={currentGuess}
+                      activeGuess={activeGuessForMe}
                       errorShakeKey={shakeKey}
                       errorActiveRow={showActiveError}
                       secretWord={mySecretWord}
