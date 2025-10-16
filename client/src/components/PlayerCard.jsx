@@ -1,16 +1,11 @@
 import React from "react";
 import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 /**
- * Clean, no-glow player card for Duel mode.
- *
- * New optional props (all default false):
- *  - isTyping: show a tiny "Typing…" pill
- *  - hasSecret: show a tiny "Secret set" pill
- *  - disconnected: show "Offline" pill
- *  - highlight: "none" | "active" | "winner"
- *      - "active": thin blue left bar
- *      - "winner": thin emerald left bar + small trophy next to name
+ * Rich player summary card used across duel/shared/battle views.
+ * Supports optional state chips, host flag, and winner/active accents.
  */
 export default function PlayerCard({
   name = "Player",
@@ -21,7 +16,6 @@ export default function PlayerCard({
   className,
   rightExtras,
   size = "md", // "sm" | "md"
-  // new (optional)
   isTyping = false,
   hasSecret = false,
   disconnected = false,
@@ -35,139 +29,117 @@ export default function PlayerCard({
       .map((x) => x[0]?.toUpperCase())
       .join("") || "?";
 
-  const avatarSize = size === "sm" ? "w-8 h-8 text-base" : "w-10 h-10 text-xl";
-  const textName = size === "sm" ? "text-sm" : "text-base";
-  const chipText = "text-[10px]";
-  const chipPad = "px-1.5 py-0.5";
-  const rowGap = size === "sm" ? "gap-1" : "gap-1.5";
+  const isActive = highlight === "active";
+  const isWinner = highlight === "winner";
 
-  // TL accent bar (thin, subtle)
-  const accentClass =
-    highlight === "active"
-      ? "before:bg-blue-500"
-      : highlight === "winner"
-      ? "before:bg-emerald-600"
-      : "before:bg-transparent";
+  const avatarSizing =
+    size === "sm"
+      ? "w-10 h-10 text-lg"
+      : "w-12 h-12 sm:w-14 sm:h-14 text-xl sm:text-2xl";
+
+  const nameSizing = size === "sm" ? "text-sm" : "text-base";
 
   return (
-    <div
+    <Card
+      data-active={isActive}
       className={cn(
-        "relative w-full px-0 py-1.5 md:py-2",
-        "flex items-center justify-between gap-3",
-        "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1", // thin accent
-        accentClass,
-        highlight === "active" && "shadow-[0_0_12px_rgba(99,102,241,0.8)] transition-all",
+        "relative overflow-hidden transition-all duration-300",
+        isActive
+          ? "ring-2 ring-primary shadow-lg"
+          : "opacity-85 hover:opacity-95",
         className
       )}
-        data-active={highlight === "active"}
+      style={{
+        background: "var(--gradient-card)",
+        boxShadow: "var(--shadow-card)",
+      }}
     >
-      <div className="flex items-center gap-3 min-w-0">
-        {/* Avatar */}
-        <div
-          className={cn(
-            "grid place-items-center rounded-full bg-slate-100 text-slate-700 border border-slate-200 shrink-0",
-            avatarSize
-          )}
-          aria-hidden
-        >
-          {avatar || initials}
-        </div>
-
-        {/* Name + chips */}
-        <div className="min-w-0">
+      <div className="p-4 sm:p-5">
+        <div className="flex items-start gap-4">
           <div
             className={cn(
-              "font-semibold truncate flex items-center gap-1.5",
-              textName
+              "flex-shrink-0 rounded-xl grid place-items-center font-bold transition-all",
+              avatarSizing,
+              isActive
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "bg-muted text-muted-foreground"
             )}
+            aria-hidden
           >
-            {name}
-            {highlight === "winner" && (
-              <span
-                title="Winner"
-                className="text-emerald-600"
-                aria-label="Winner"
-              >
-                🏆
-              </span>
-            )}
+            {avatar || initials}
           </div>
 
-          <div className={cn("flex items-center flex-wrap", rowGap, "mt-1")}>
-            {host && (
-              <span
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center flex-wrap gap-2">
+              <h3
                 className={cn(
-                  chipText,
-                  chipPad,
-                  "rounded bg-slate-900 text-white uppercase tracking-wider"
+                  "font-semibold text-foreground truncate",
+                  nameSizing
                 )}
-                title="Room host"
               >
-                Host
-              </span>
-            )}
-
-            {/* Score chips */}
-            <span
-              className={cn(
-                chipText,
-                chipPad,
-                "rounded bg-slate-50 text-slate-700 border border-slate-200"
+                {name}
+              </h3>
+              {isActive && (
+                <Badge variant="default" className="text-[10px] px-2 py-0">
+                  Active
+                </Badge>
               )}
-              title="Wins"
-            >
-              W:{wins ?? 0}
-            </span>
-            <span
-              className={cn(
-                chipText,
-                chipPad,
-                "rounded bg-indigo-50 text-indigo-700 border border-indigo-200"
+              {isWinner && (
+                <Badge variant="outline" className="text-[10px] px-2 py-0">
+                  Winner
+                </Badge>
               )}
-              title="Current streak"
-            >
-              Stk:{streak ?? 0}
-            </span>
+              {host && (
+                <Badge variant="secondary" className="text-[10px] px-2 py-0">
+                  Host
+                </Badge>
+              )}
+              {disconnected && (
+                <Badge variant="destructive" className="text-[10px] px-2 py-0">
+                  Offline
+                </Badge>
+              )}
+            </div>
 
-            {/* Live-state chips (mutually independent) */}
-            {isTyping && !disconnected && (
-              <span
-                className={cn(
-                  chipText,
-                  chipPad,
-                  "rounded bg-amber-50 text-amber-700 border border-amber-200"
-                )}
-              >
-                Typing…
-              </span>
-            )}
-            {hasSecret && !disconnected && (
-              <span
-                className={cn(
-                  chipText,
-                  chipPad,
-                  "rounded bg-emerald-50 text-emerald-700 border border-emerald-200"
-                )}
-              >
-                Secret set
-              </span>
-            )}
-            {disconnected && (
-              <span
-                className={cn(
-                  chipText,
-                  chipPad,
-                  "rounded bg-rose-50 text-rose-700 border border-rose-200"
-                )}
-              >
-                Offline
-              </span>
-            )}
+            <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+              {isTyping && !disconnected && (
+                <Badge variant="secondary" className="text-[10px] px-2 py-0">
+                  Typing...
+                </Badge>
+              )}
+              {hasSecret && !disconnected && (
+                <Badge variant="secondary" className="text-[10px] px-2 py-0">
+                  Secret set
+                </Badge>
+              )}
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Wins</span>
+                <span className="font-semibold text-foreground">
+                  {wins ?? 0}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Streak</span>
+                <span className="font-semibold text-foreground">
+                  {streak ?? 0}
+                </span>
+              </div>
+            </div>
           </div>
+
+          {rightExtras && <div className="shrink-0">{rightExtras}</div>}
         </div>
       </div>
 
-      {rightExtras && <div className="shrink-0">{rightExtras}</div>}
-    </div>
+      {isActive && (
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/0 via-primary to-primary/0" />
+      )}
+      {isWinner && !isActive && (
+        <div className="absolute inset-0 border border-emerald-500/40 pointer-events-none rounded-xl" />
+      )}
+    </Card>
   );
 }

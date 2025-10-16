@@ -96,15 +96,10 @@ export default function App() {
     rejoinOffered,
   } = useSocketConnection(room, setScreen);
 
-  const {
-    submitSecret,
-    submitDuelGuess,
-    submitSharedGuess,
-    duelPlayAgain,
-    setWordAndStart,
-    battleGuess,
-    startShared,
-  } = useGameActions();
+  const actionsByMode = useGameActions();
+  const duelActions = actionsByMode.duel;
+  const sharedActions = actionsByMode.shared;
+  const battleActions = actionsByMode.battle;
 
   const {
     createRoom,
@@ -198,8 +193,8 @@ export default function App() {
     
     // Use appropriate function based on mode
     const v = room?.mode === "shared" 
-      ? await submitSharedGuess(roomId, currentGuess, canGuessShared)
-      : await submitDuelGuess(roomId, currentGuess, canGuessDuel);
+      ? await sharedActions.submitGuess(roomId, currentGuess, canGuessShared)
+      : await duelActions.submitGuess(roomId, currentGuess, canGuessDuel);
       
     if (v?.error) {
       bumpActiveRowError();
@@ -222,7 +217,7 @@ export default function App() {
     if (!canGuessBattle) return;
     if (key === "ENTER") {
       if (currentGuess.length === 5) {
-        const result = await battleGuess(roomId, currentGuess, canGuessBattle);
+        const result = await battleActions.submitGuess(roomId, currentGuess, canGuessBattle);
         if (result?.error) {
           bumpActiveRowError();
           return;
@@ -317,6 +312,16 @@ export default function App() {
               setCurrentGuess("");
               setShowVictory(false);
             }}
+            roomId={room?.id}
+            modeLabel={
+              room?.mode === "shared"
+                ? "Shared Wordle"
+                : room?.mode === "duel"
+                ? "Duel Mode"
+                : room?.mode === "battle"
+                ? "Battle Royale"
+                : null
+            }
             right={
               <ConnectionBar
                 connected={connected}
@@ -326,6 +331,39 @@ export default function App() {
               />
             }
           />
+
+          {/* Victory Modal shown while in-game as overlay */}
+          {showVictory && (
+            <VictoryModal
+              open={showVictory}
+              onOpenChange={setShowVictory}
+              mode={room?.mode}
+              winnerName={room?.mode === "shared" ?
+                (room?.shared?.winner && room?.shared?.winner !== "draw" ?
+                  room?.players?.[room.shared.winner]?.name : null) :
+                (room?.mode === "duel" ?
+                  (room?.winner && room?.winner !== "draw" ?
+                    room?.players?.[room.winner]?.name : null) : null)
+              }
+              leftName={room?.mode === "duel" ?
+                Object.values(room?.players || {})[0]?.name : null}
+              rightName={room?.mode === "duel" ?
+                Object.values(room?.players || {})[1]?.name : null}
+              leftSecret={room?.mode === "duel" ?
+                room?.duelReveal?.[Object.keys(room?.players || {})[0]] : null}
+              rightSecret={room?.mode === "duel" ?
+                room?.duelReveal?.[Object.keys(room?.players || {})[1]] : null}
+              battleSecret={room?.mode === "shared" ?
+                room?.shared?.lastRevealedWord :
+                room?.battle?.lastRevealedWord}
+              onPlayAgain={room?.mode === "shared" || room?.mode === "duel" ?
+                async () => {
+                  setShowVictory(false);
+                  try { await duelActions.playAgain(roomId); } catch (e) {}
+                } : () => setShowVictory(false)}
+              showPlayAgain={room?.mode === "shared" || room?.mode === "duel"}
+            />
+          )}
 
           {/* DUEL GAME */}
           {room?.mode === "duel" && (
@@ -339,14 +377,14 @@ export default function App() {
               letterStates={letterStates}
               onKeyPress={handleDuelKey}
               onSubmitSecret={async (secret) => {
-                const result = await submitSecret(roomId, secret); // { ok: true } or { error: "..." }
+                const result = await duelActions.submitSecret(roomId, secret); // { ok: true } or { error: "..." }
                 if (result?.error) setMsg(result.error);
                 return result;
               }}
               onRematch={async () => {
                 // Use the action helper that emits the correct payload shape { roomId }
                 try {
-                  await duelPlayAgain(roomId);
+                  await duelActions.playAgain(roomId);
                 } catch (e) {
                   // no-op; UI will still update via roomState events
                 }
@@ -363,7 +401,7 @@ export default function App() {
               letterStates={letterStates}
               onKeyPress={handleDuelKey}
               onStartShared={async () => {
-                const res = await startShared(roomId);
+                const res = await sharedActions.startRound(roomId);
                 if (res?.error) {
                   console.error("Start shared error:", res.error);
                   setMsg(res.error || "Failed to start shared duel");
@@ -372,8 +410,10 @@ export default function App() {
               }}
               onRematch={async () => {
                 try {
-                  await duelPlayAgain(roomId);
-                } catch (e) {}
+                  await sharedActions.playAgain(roomId);
+                } catch (e) {
+                  // no-op
+                }
               }}
             />
           )}
@@ -386,7 +426,7 @@ export default function App() {
                 room={room}
                 players={players}
                 onWordSubmit={async (word) => {
-                  await setWordAndStart(room.id, word); // emits setHostWord then startBattle
+                  await battleActions.setWordAndStart(room.id, word); // emits setHostWord then startBattle
                 }}
                 onCopyRoomId={() =>
                   navigator.clipboard.writeText(room?.id || "")
@@ -424,6 +464,8 @@ export default function App() {
               setCurrentGuess("");
               setShowVictory(false);
             }}
+            roomId={roomId}
+            modeLabel={mode === "shared" ? "Shared Wordle" : mode === "duel" ? "Duel Mode" : mode === "battle" ? "Battle Royale" : null}
             right={
               !viewingHost && (
                 <ConnectionBar
@@ -474,14 +516,20 @@ export default function App() {
                 battleSecret={room?.mode === "shared" ? 
                   room?.shared?.lastRevealedWord : 
                   room?.battle?.lastRevealedWord}
-                onPlayAgain={room?.mode === "shared" || room?.mode === "duel" ? 
-                  async () => {
+              onPlayAgain={room?.mode === "shared" || room?.mode === "duel"
+                ? async () => {
                     setShowVictory(false);
                     try {
-                      await duelPlayAgain(roomId);
-                    } catch (e) {}
-                  } : 
-                  () => setShowVictory(false)}
+                      if (room?.mode === "duel") {
+                        await duelActions.playAgain(roomId);
+                      } else {
+                        await sharedActions.playAgain(roomId);
+                      }
+                    } catch (e) {
+                      // noop
+                    }
+                  }
+                : () => setShowVictory(false)}
                 showPlayAgain={room?.mode === "shared" || room?.mode === "duel"}
               />
             )}

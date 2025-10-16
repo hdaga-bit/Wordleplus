@@ -15,6 +15,15 @@ export default function MobileBattleLayout({
   className = "",
 }) {
   const [showOtherPlayers, setShowOtherPlayers] = useState(false);
+  const myGuesses = me?.guesses || [];
+  const latestGuessWord = myGuesses.length
+    ? (myGuesses[myGuesses.length - 1]?.guess || "").toUpperCase()
+    : "";
+  const normalizedCurrentGuess = (currentGuess || "").toUpperCase();
+  const activeGuessForMobile =
+    canGuessBattle && normalizedCurrentGuess && normalizedCurrentGuess !== latestGuessWord
+      ? currentGuess
+      : "";
 
   return (
     <div className={cn("flex flex-col h-full", className)}>
@@ -41,7 +50,7 @@ export default function MobileBattleLayout({
         <div className="w-full max-w-sm">
           <Board
             guesses={me?.guesses || []}
-            activeGuess={currentGuess}
+            activeGuess={activeGuessForMobile}
             errorShakeKey={shakeKey}
             errorActiveRow={showActiveError}
             maxTile={120}

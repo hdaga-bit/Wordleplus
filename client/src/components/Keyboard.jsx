@@ -157,7 +157,7 @@ export default function Keyboard({
               : "inset 0 -2px 0 rgba(0,0,0,0.08)",
         }}
       >
-        {label === "BACKSPACE" ? "⌫" : label}
+        {label === "BACKSPACE" ? "Back" : label}
       </button>
     );
   };
@@ -182,7 +182,7 @@ export default function Keyboard({
           {disabled && (
             <div className="text-center mb-2">
               <div className="text-xs text-muted-foreground font-medium">
-                ⏳ Waiting for your turn...
+                Waiting for your turn...
               </div>
             </div>
           )}
