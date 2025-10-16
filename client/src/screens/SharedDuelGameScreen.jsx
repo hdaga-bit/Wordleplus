@@ -49,37 +49,8 @@ export default function SharedDuelGameScreen({ room, me, currentGuess, onKeyPres
     return `${opponent?.name}'s turn`;
   };
 
-  // Get turn indicator color
-  const getTurnIndicatorColor = () => {
-    if (room.shared?.winner) return "bg-gray-400";
-    if (myTurn) return "bg-green-500";
-    return "bg-blue-500";
-  };
-
   return (
     <div className="min-h-dvh w-full overflow-hidden grid grid-rows-[auto_1fr_auto] bg-background relative">
-      {/* Header with game status */}
-      <header className="px-4 py-3 border-b border-border">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-lg font-semibold text-foreground">Shared Wordle</h1>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Room:</span>
-              <span className="font-mono font-bold text-sm bg-muted px-2 py-1 rounded">
-                {room?.id}
-              </span>
-            </div>
-          </div>
-          
-          {/* Game status and turn indicator */}
-          <div className="flex items-center justify-center gap-3">
-            <div className={`w-3 h-3 rounded-full ${getTurnIndicatorColor()} transition-colors duration-300`}></div>
-            <span className="text-sm font-medium text-center">{getGameStatus()}</span>
-            <div className={`w-3 h-3 rounded-full ${getTurnIndicatorColor()} transition-colors duration-300`}></div>
-          </div>
-        </div>
-      </header>
-
       <main className="px-4 py-4 min-h-0">
         <div className="max-w-4xl mx-auto h-full flex flex-col">
           {/* Player cards */}

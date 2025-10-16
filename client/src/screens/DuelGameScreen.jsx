@@ -412,7 +412,8 @@ function DuelGameScreen({
     : "empty";
   return (
     <div
-      className="min-h-dvh w-full overflow-hidden grid grid-rows-[auto_1fr_auto] bg-background relative"
+      className="w-full flex flex-col bg-background relative overflow-hidden"
+      style={{ minHeight: "calc(100dvh - 64px)" }}
       {...swipeGestures}
     >
       <ParticleEffect
@@ -435,7 +436,7 @@ function DuelGameScreen({
       <ConfettiEffect trigger={showConfetti} />
 
       {/* Game Status */}
-      <div className="px-4 pb-2">
+      <div className="px-3 pt-2 pb-1.5">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-base md:text-lg font-semibold text-center text-muted-foreground flex-1">
             {isGameEnded ? (
@@ -518,7 +519,7 @@ function DuelGameScreen({
       </div>
 
       {/* Main */}
-      <main className="px-4 py-2 min-h-0">
+      <main className="flex-1 px-3 md:px-4 pt-2 pb-3 min-h-0">
         {isMobile ? (
           <div className="h-full flex flex-col">
             <MobileBoardSwitcher
@@ -574,10 +575,10 @@ function DuelGameScreen({
             )}
           </div>
         ) : (
-          <div className="w-full h-full min-h-0 grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 place-items-center">
+          <div className="w-full h-full min-h-0 flex flex-col md:flex-row md:items-start gap-3 md:gap-4">
             {/* YOU */}
-            <section className="w-full flex flex-col ">
-              <div className="w-full max-w-[min(92vw,820px)]">
+            <section className="w-full md:flex-1 flex flex-col gap-3">
+              <div className="w-full max-w-[min(92vw,820px)] mx-auto">
                 <DuelPlayerCard
                   name={me?.name || "You"}
                   wins={me?.wins}
@@ -593,24 +594,11 @@ function DuelGameScreen({
                 />
               </div>
 
-              <div
-                style={{
-                  gridColumn: "1 / -1",
-                  display: "grid",
-                  placeItems: "center",
-                  fontSize: 12,
-                  lineHeight: 1,
-                  color: "#64748b",
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  paddingTop: "2px",
-                }}
-              >
+              <div className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground text-center">
                 Secret Word
               </div>
               {canSetSecret && secretWordInput.length === 5 && (
-                <div className="text-center text-xs text-muted-foreground mt-1">
+                <div className="text-center text-xs text-muted-foreground">
                   Press <span className="font-semibold">Enter</span> to lock
                   your word
                 </div>
@@ -670,7 +658,7 @@ function DuelGameScreen({
             </section>
 
             {/* OPPONENT */}
-            <section className="w-full flex flex-col">
+            <section className="w-full md:flex-1 flex flex-col gap-3">
               <div className="w-full max-w-[min(92vw,820px)] mx-auto">
                 <DuelPlayerCard
                   name={opponent?.name || "—"}
@@ -689,20 +677,7 @@ function DuelGameScreen({
                 />
               </div>
 
-              <div
-                style={{
-                  gridColumn: "1 / -1",
-                  display: "grid",
-                  placeItems: "center",
-                  fontSize: 12,
-                  lineHeight: 1,
-                  color: "#64748b",
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  paddingTop: "2px",
-                }}
-              >
+              <div className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground text-center">
                 Secret Word
               </div>
 
@@ -730,7 +705,7 @@ function DuelGameScreen({
       </main>
 
       {/* Footer */}
-      <footer className="w-full px-2 sm:px-4 py-2">
+      <footer className="w-full px-2 sm:px-4 py-1.5">
         <div className="mx-auto w-full max-w-5xl">
           {isGameEnded ? (
             <div className="text-center">
@@ -769,7 +744,7 @@ function DuelGameScreen({
 
       {/* Keyboard - Now in its own grid row */}
       {(canSetSecret || canGuess) && (
-        <div className="w-full px-2 sm:px-4 py-2">
+        <div className="w-full px-2 sm:px-4 py-1.5">
           <div className="mx-auto w-full max-w-5xl">
             <Keyboard onKeyPress={handleKeyPress} letterStates={letterStates} />
           </div>

@@ -300,11 +300,6 @@ export default function Board({
               ? `active-${rowIdx}-${errorShakeKey}`
               : `row-${rowIdx}`;
             
-            // Get player info for this guess (if it's a shared board)
-            const guessPlayerId = row.by;
-            const guessPlayer = guessPlayerId ? players[guessPlayerId] : null;
-            const isMyGuess = guessPlayerId === currentPlayerId;
-            
             return (
               <div
                 key={rowKey}
@@ -313,34 +308,6 @@ export default function Board({
                   display: "contents", // render tiles directly into the grid
                 }}
               >
-                {/* Player attribution for shared boards */}
-                {guessPlayer && !isActive && (
-                  <div
-                    style={{
-                      gridColumn: "1 / -1",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-start",
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: isMyGuess ? "#059669" : "#6b7280",
-                      marginBottom: 2,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
-                        backgroundColor: isMyGuess ? "#059669" : "#6b7280",
-                        marginRight: 4,
-                      }}
-                    />
-                    {guessPlayer.name}
-                  </div>
-                )}
                 {Array.from({ length: 5 }).map((_, i) => {
                   const ch = row.guess?.[i] || "";
                   const state = row.pattern?.[i] || "empty";

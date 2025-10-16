@@ -344,7 +344,10 @@ function BattleGameScreen({
   }, [roundFinished, room?.battle?.winner, me?.id]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-background relative">
+    <div
+      className="w-full flex flex-col bg-background relative overflow-hidden"
+      style={{ minHeight: "calc(100dvh - 64px)" }}
+    >
       {/* Particle Effects */}
       <ParticleEffect
         trigger={showCorrectParticles}
@@ -366,7 +369,7 @@ function BattleGameScreen({
       />
 
       {/* Game Status */}
-      <div className="px-4 pt-4 pb-4">
+      <div className="px-3 pt-3 pb-2">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-2xl font-bold text-slate-800 text-center mb-1">
             Battle Royale
@@ -397,7 +400,7 @@ function BattleGameScreen({
       </div>
 
       {/* Main */}
-      <main className="flex-1 px-4 pb-4" style={{ minHeight: 0 }}>
+      <main className="flex-1 px-3 md:px-4 pt-2 pb-3 flex flex-col min-h-0">
         {isMobile ? (
           roundActive ? (
             <MobileBattleLayout
@@ -421,10 +424,10 @@ function BattleGameScreen({
             </div>
           )
         ) : (
-          <div className="flex-1 flex items-center justify-center min-h-0 relative">
+          <div className="flex-1 flex flex-col items-center min-h-0 relative gap-3">
             {/* Center board */}
             {roundActive ? (
-              <div className="w-full h-full max-w-[min(1100px,95vw)] max-h-[calc(100vh-180px)] flex items-center justify-center">
+              <div className="flex-1 w-full max-w-[min(1100px,95vw)] max-h-[calc(100dvh-260px)] flex items-center justify-center min-h-0">
                 <Board
                   guesses={me?.guesses || []}
                   activeGuess={currentGuess}
@@ -438,7 +441,7 @@ function BattleGameScreen({
                 />
               </div>
             ) : (
-              <div className="w-full h-full flex items-center justify-center">
+              <div className="flex-1 w-full flex items-center justify-center">
                 <GameResults
                   room={room}
                   players={allPlayers}
@@ -465,7 +468,7 @@ function BattleGameScreen({
       </main>
 
       {/* Footer (players only) */}
-      <footer className="px-2 sm:px-4 pb-3 flex-shrink-0">
+      <footer className="px-2 sm:px-4 pb-2 flex-shrink-0">
         <div className="max-w-5xl mx-auto">
           {canGuessBattle ? (
             <Keyboard onKeyPress={onKeyPress} letterStates={letterStates} />

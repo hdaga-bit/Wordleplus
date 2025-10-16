@@ -312,6 +312,16 @@ export default function App() {
               setCurrentGuess("");
               setShowVictory(false);
             }}
+            roomId={room?.id}
+            modeLabel={
+              room?.mode === "shared"
+                ? "Shared Wordle"
+                : room?.mode === "duel"
+                ? "Duel Mode"
+                : room?.mode === "battle"
+                ? "Battle Royale"
+                : null
+            }
             right={
               <ConnectionBar
                 connected={connected}
@@ -454,6 +464,8 @@ export default function App() {
               setCurrentGuess("");
               setShowVictory(false);
             }}
+            roomId={roomId}
+            modeLabel={mode === "shared" ? "Shared Wordle" : mode === "duel" ? "Duel Mode" : mode === "battle" ? "Battle Royale" : null}
             right={
               !viewingHost && (
                 <ConnectionBar
