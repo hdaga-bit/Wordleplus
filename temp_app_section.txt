@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { socket } from "./socket";
+import { cn } from "./lib/utils.js";
 
 // Extracted Components
 import HomeScreen from "./screens/HomeScreen.jsx";
@@ -21,6 +22,7 @@ import { useRoomManagement } from "./hooks/useRoomManagement.js";
 import { buildLetterStates } from "./modes/utils.js";
 
 // UI Components
+import { Button } from "@/components/ui/button";
 
 const LS_LAST_ROOM = "wp.lastRoomId";
 const LS_LAST_NAME = "wp.lastName";
@@ -46,7 +48,6 @@ export default function App() {
   const [currentGuess, setCurrentGuess] = useState("");
   const [dailyChallenge, setDailyChallenge] = useState(null);
   const [dailyGuesses, setDailyGuesses] = useState([]);
-  const [dailyPatternResponses, setDailyPatternResponses] = useState([]);
   const [dailyCurrentGuess, setDailyCurrentGuess] = useState("");
   const [dailyStatus, setDailyStatus] = useState("");
   const [dailyGameOver, setDailyGameOver] = useState(false);
@@ -96,30 +97,6 @@ export default function App() {
     duelSecrets,
   } = useGameState(room);
 
-  const dailyWordLength =
-    dailyChallenge?.wordLength || dailyWordLengthDefault;
-  const maxDailyGuesses =
-    dailyChallenge?.maxGuesses || maxDailyGuessesDefault;
-  const dailyGuessEntries = useMemo(
-    () =>
-      dailyGuesses.map((guess, idx) => {
-        const pattern = dailyPatternResponses[idx] || [];
-        const padded = Array.from({ length: dailyWordLength }, (_, i) => {
-          const value = pattern[i];
-          if (value === "green" || value === "correct") return "green";
-          if (value === "yellow" || value === "present") return "yellow";
-          if (value === "gray" || value === "absent") return "gray";
-          return "empty";
-        });
-        return { guess, pattern: padded };
-      }),
-    [dailyGuesses, dailyPatternResponses, dailyWordLength]
-  );
-  const dailyLetterStates = useMemo(
-    () => buildLetterStates(dailyGuessEntries),
-    [dailyGuessEntries]
-  );
-
   const {
     connected,
     canRejoin,
@@ -143,207 +120,6 @@ export default function App() {
     clearSavedSession,
     goHome,
   } = useRoomManagement();
-
-  const resetDailyProgress = useCallback(() => {
-    setDailyChallenge(null);
-    setDailyGuesses([]);
-    setDailyPatternResponses([]);
-    setDailyCurrentGuess("");
-    setDailyStatus("");
-    setDailyGameOver(false);
-    setDailyLoading(false);
-  }, []);
-
-  const startDailyMode = useCallback(async () => {
-    persistSession({ name, mode: "daily" });
-    setMode("daily");
-    setMsg("");
-    goHome();
-    setRoom(null);
-    setRoomId("");
-    setCurrentGuess("");
-    setShowVictory(false);
-    resetDailyProgress();
-    setScreen("daily");
-    setDailyLoading(true);
-    try {
-      const response = await dailyActions.loadChallenge();
-      if (response?.error) {
-        setDailyStatus(response.error);
-        setDailyChallenge(null);
-        return;
-      }
-      setDailyChallenge(response);
-      const responseWordLength =
-        response?.wordLength || dailyWordLengthDefault;
-      if (Array.isArray(response?.guesses)) {
-        setDailyGuesses(
-          response.guesses.map((g) => String(g || "").toUpperCase())
-        );
-      }
-      if (Array.isArray(response?.patterns)) {
-        setDailyPatternResponses(
-          response.patterns.map((pattern = []) =>
-            Array.from({ length: responseWordLength }, (_, i) => {
-              const value = pattern[i];
-              if (value === "green" || value === "correct") return "green";
-              if (value === "yellow" || value === "present") return "yellow";
-              if (value === "gray" || value === "absent") return "gray";
-              return "empty";
-            })
-          )
-        );
-      }
-      if (typeof response?.currentGuess === "string") {
-        setDailyCurrentGuess(response.currentGuess.toUpperCase());
-      }
-      if (typeof response?.status === "string") {
-        setDailyStatus(response.status);
-      } else {
-        setDailyStatus("");
-      }
-      if (response?.gameOver) {
-        setDailyGameOver(true);
-      }
-    } catch (err) {
-      setDailyStatus(err?.message || "Unable to load daily challenge");
-      setDailyChallenge(null);
-    } finally {
-      setDailyLoading(false);
-    }
-  }, [dailyActions, name, persistSession, resetDailyProgress]);
-
-  const handleDailySubmit = useCallback(async () => {
-    if (screen !== "daily") return;
-    if (!dailyChallenge) return;
-    if (dailyGameOver) return;
-    if (dailyLoading) return;
-    if (dailyGuesses.length >= maxDailyGuesses) {
-      setDailyStatus("No more guesses left. Come back tomorrow!");
-      setDailyGameOver(true);
-      return;
-    }
-    if (dailyCurrentGuess.length !== dailyWordLength) {
-      setDailyStatus(`Need ${dailyWordLength} letters`);
-      return;
-    }
-    if (dailyGuesses.includes(dailyCurrentGuess)) {
-      setDailyStatus("You've already tried that word.");
-      return;
-    }
-
-    setDailyLoading(true);
-    try {
-      const result = await dailyActions.submitGuess(
-        dailyCurrentGuess.toLowerCase()
-      );
-      if (result?.error) {
-        setDailyStatus(result.error);
-        return;
-      }
-
-      const patternRaw = Array.isArray(result?.pattern) ? result.pattern : [];
-      const normalized = Array.from(
-        { length: dailyWordLength },
-        (_, idx) => {
-          const value = patternRaw[idx];
-          if (value === "green" || value === "correct") return "green";
-          if (value === "yellow" || value === "present") return "yellow";
-          if (value === "gray" || value === "absent") return "gray";
-          return "empty";
-        }
-      );
-
-      const nextGuessCount = dailyGuesses.length + 1;
-      const solved =
-        normalized.every((state) => state === "green") ||
-        Boolean(result?.correct);
-      const exhausted = nextGuessCount >= maxDailyGuesses;
-
-      setDailyGuesses((prev) => [...prev, dailyCurrentGuess]);
-      setDailyPatternResponses((prev) => [...prev, normalized]);
-      setDailyCurrentGuess("");
-      setDailyGameOver(
-        solved ||
-          exhausted ||
-          Boolean(result?.complete || result?.gameOver)
-      );
-
-      if (result?.message) {
-        setDailyStatus(result.message);
-      } else if (solved) {
-        setDailyStatus("You solved today's puzzle!");
-      } else if (exhausted) {
-        setDailyStatus("No more guesses left. Come back tomorrow!");
-      } else {
-        setDailyStatus("");
-      }
-    } catch (err) {
-      setDailyStatus(err?.message || "Unable to submit guess");
-    } finally {
-      setDailyLoading(false);
-    }
-  }, [
-    screen,
-    dailyActions,
-    dailyChallenge,
-    dailyCurrentGuess,
-    dailyGameOver,
-    dailyGuesses,
-    dailyLoading,
-    dailyWordLength,
-    maxDailyGuesses,
-  ]);
-
-  const handleDailyKey = useCallback(
-    (key) => {
-      if (screen !== "daily") return;
-      if (!dailyChallenge) return;
-      if (dailyGameOver || dailyLoading) return;
-
-      if (key === "ENTER") {
-        handleDailySubmit();
-      } else if (key === "BACKSPACE") {
-        setDailyCurrentGuess((prev) => prev.slice(0, -1));
-        setDailyStatus("");
-      } else if (
-        /^[A-Z]$/.test(key) &&
-        dailyCurrentGuess.length < dailyWordLength
-      ) {
-        setDailyCurrentGuess((prev) => prev + key);
-        setDailyStatus("");
-      }
-    },
-    [
-      screen,
-      dailyChallenge,
-      dailyGameOver,
-      dailyLoading,
-      dailyCurrentGuess,
-      dailyWordLength,
-      handleDailySubmit,
-    ]
-  );
-
-  useEffect(() => {
-    if (screen !== "daily") return;
-
-    const onKeyDown = (e) => {
-      const key =
-        e.key === "Enter"
-          ? "ENTER"
-          : e.key === "Backspace"
-          ? "BACKSPACE"
-          : /^[a-zA-Z]$/.test(e.key)
-          ? e.key.toUpperCase()
-          : null;
-      if (!key) return;
-      handleDailyKey(key);
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [screen, handleDailyKey]);
 
   // Show victory when there is a real outcome (not just started=false at lobby)
   useEffect(() => {
@@ -469,8 +245,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (screen !== "game") return;
-
     const onKeyDown = (e) => {
       // If I'm the host in Battle and the round hasn't started yet,
       // we're on the "type secret" screen — don't handle keys globally.
@@ -499,7 +273,6 @@ export default function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
-    screen,
     room?.mode,
     room?.battle?.started,
     isHost,
@@ -690,38 +463,8 @@ export default function App() {
         </>
       )}
 
-      {screen === "daily" && (
-        <div className="min-h-screen flex flex-col">
-          <BrandHeader
-            onHomeClick={() => {
-              goHome();
-              resetDailyProgress();
-              setScreen("home");
-              setMode("daily");
-              setRoom(null);
-              setRoomId("");
-              setShowVictory(false);
-            }}
-            modeLabel="Daily Challenge"
-          />
-          <div className="flex-1">
-            <DailyGameScreen
-              challenge={dailyChallenge}
-              guesses={dailyGuessEntries}
-              currentGuess={dailyCurrentGuess}
-              letterStates={dailyLetterStates}
-              onKeyPress={handleDailyKey}
-              onSubmit={handleDailySubmit}
-              statusMessage={dailyStatus}
-              loading={dailyLoading}
-              gameOver={dailyGameOver}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Main app container for home/lobby screens - Constrained width */}
-      {screen !== "game" && screen !== "daily" && (
+      {screen !== "game" && (
         <div className="h-[100dvh] min-h-screen overflow-hidden">
           <BrandHeader
             onHomeClick={() => {
@@ -757,7 +500,6 @@ export default function App() {
                 setMode={setMode}
                 onCreate={create}
                 onJoin={join}
-                onPlayDaily={startDailyMode}
                 message={msg}
               />
             )}
@@ -785,7 +527,7 @@ export default function App() {
                 battleSecret={room?.mode === "shared" ? 
                   room?.shared?.lastRevealedWord : 
                   room?.battle?.lastRevealedWord}
-                onPlayAgain={room?.mode === "shared" || room?.mode === "duel"
+              onPlayAgain={room?.mode === "shared" || room?.mode === "duel"
                 ? async () => {
                     setShowVictory(false);
                     try {

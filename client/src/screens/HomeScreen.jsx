@@ -13,15 +13,21 @@ export default function HomeScreen({
   setMode,
   onCreate,
   onJoin,
+  onPlayDaily,
   message,
 }) {
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
+  const isDaily = mode === "daily";
 
   const submitCreate = async () => {
     setCreating(true);
     try {
-      await onCreate();
+      if (isDaily && onPlayDaily) {
+        await onPlayDaily();
+      } else {
+        await onCreate();
+      }
     } finally {
       setCreating(false);
     }
@@ -68,11 +74,10 @@ export default function HomeScreen({
                   className="w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all"
                 />
               </div>
-
               {/* Mode Selection */}
               <div className="mb-4">
                 <div className="text-sm font-medium text-foreground mb-2">
-                  Choose your battle mode
+                  Choose your mode
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
@@ -108,38 +113,70 @@ export default function HomeScreen({
                   >
                     Shared Duel
                   </Button>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Button
-                  onClick={submitCreate}
-                  disabled={creating || !name.trim()}
-                  size="lg"
-                  className="bg-gradient-primary hover:shadow-glow transition-all duration-300 h-10"
-                >
-                  {creating ? "Creating…" : "Create Room"}
-                </Button>
-
-                <div className="flex gap-2">
-                  <input
-                    value={roomId}
-                    onChange={(e) => setRoomId(e.target.value.toUpperCase())}
-                    placeholder="Room code"
-                    className="flex-1 h-10 rounded-lg border border-input bg-background/50 px-3 text-foreground outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all"
-                  />
                   <Button
-                    onClick={submitJoin}
-                    disabled={joining || !roomId.trim()}
-                    size="lg"
-                    variant="outline"
-                    className="h-10 px-4 hover:bg-primary/10"
+                    onClick={() => setMode("daily")}
+                    variant={mode === "daily" ? "default" : "outline"}
+                    className={`h-10 transition-all ${
+                      mode === "daily"
+                        ? "bg-gradient-primary hover:shadow-glow"
+                        : "hover:bg-primary/10"
+                    } flex items-center justify-center gap-1`}
                   >
-                    {joining ? "Joining…" : "Join"}
+                    Daily Challenge
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 hidden sm:inline-block text-[10px] uppercase tracking-[0.2em]"
+                    >
+                      New
+                    </Badge>
                   </Button>
                 </div>
               </div>
+              {/* Actions */}
+              {isDaily ? (
+                <div className="grid grid-cols-1 gap-3">
+                  <Button
+                    onClick={submitCreate}
+                    disabled={creating || !name.trim()}
+                    size="lg"
+                    className="bg-gradient-primary hover:shadow-glow transition-all duration-300 h-10"
+                  >
+                    {creating ? "Loading..." : "Play Daily Challenge"}
+                  </Button>
+                  <p className="text-center text-xs text-muted-foreground">
+                    One puzzle per day. Progress resets at midnight.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Button
+                    onClick={submitCreate}
+                    disabled={creating || !name.trim()}
+                    size="lg"
+                    className="bg-gradient-primary hover:shadow-glow transition-all duration-300 h-10"
+                  >
+                    {creating ? "Creating..." : "Create Room"}
+                  </Button>
+
+                  <div className="flex gap-2">
+                    <input
+                      value={roomId}
+                      onChange={(e) => setRoomId(e.target.value.toUpperCase())}
+                      placeholder="Room code"
+                      className="flex-1 h-10 rounded-lg border border-input bg-background/50 px-3 text-foreground outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all"
+                    />
+                    <Button
+                      onClick={submitJoin}
+                      disabled={joining || !roomId.trim()}
+                      size="lg"
+                      variant="outline"
+                      className="h-10 px-4 hover:bg-primary/10"
+                    >
+                      {joining ? "Joining..." : "Join"}
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* Message */}
               {message && (

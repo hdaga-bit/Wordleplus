@@ -447,7 +447,7 @@ function DuelGameScreen({
       {/* Game Status */}
       <div className="px-3 pt-2 pb-1.5">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-base md:text-lg font-semibold text-center text-muted-foreground flex-1">
+          <h2 className="text-base md:text-lg font-semibold text-center text-muted-foreground flex-1 pl-40">
             {isGameEnded ? (
               bothRequestedRematch ? (
                 "Rematch starting..."
